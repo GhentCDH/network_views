@@ -1,0 +1,22 @@
+cytoscape:
+  remote: https://github.com/cytoscape/cytoscape.js
+  version: '3.30.2'
+  license:
+    name: MIT
+    url: https://github.com/cytoscape/cytoscape.js/blob/master/LICENSE
+    gpl-compatible: true
+  js:
+    https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js:
+      type: external
+      minified: true
+
+network:
+  js:
+    js/views-network.js: {}
+  css:
+    component:
+      css/views-network.css: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - views_network/cytoscape

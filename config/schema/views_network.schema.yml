@@ -1,0 +1,83 @@
+views.style.network:
+  type: views_style
+  label: 'Network'
+  mapping:
+    label_field:
+      type: string
+      label: 'Label field'
+    tooltip_fields:
+      type: sequence
+      label: 'Tooltip fields'
+      sequence:
+        type: string
+        label: 'Field ID'
+    color_field:
+      type: string
+      label: 'Color by'
+    color_value_field:
+      type: string
+      label: 'Color from field'
+    colors:
+      type: string
+      label: 'Colors per value'
+    edge_colors:
+      type: string
+      label: 'Colors per edge type'
+    edge_sources:
+      type: sequence
+      label: 'Edge sources'
+      sequence:
+        type: views_network.edge_source.[%key]
+    directed:
+      type: boolean
+      label: 'Directed edges'
+    edge_labels:
+      type: boolean
+      label: 'Always show edge labels'
+    hide_isolated:
+      type: boolean
+      label: 'Hide nodes without connections'
+    size:
+      type: string
+      label: 'Node size'
+    link:
+      type: boolean
+      label: 'Link to the entity'
+    layout:
+      type: string
+      label: 'Layout'
+    height:
+      type: string
+      label: 'Height'
+    legend:
+      type: boolean
+      label: 'Show a legend'
+
+views_network_edge_source:
+  type: mapping
+  label: 'Edge source'
+  mapping:
+    enabled:
+      type: boolean
+      label: 'Enabled'
+    settings:
+      type: mapping
+      label: 'Settings'
+
+views_network.edge_source.*:
+  type: views_network_edge_source
+
+views_network.edge_source.entity_reference_fields:
+  type: views_network_edge_source
+  label: 'Entity reference fields'
+  mapping:
+    settings:
+      type: mapping
+      label: 'Settings'
+      mapping:
+        fields:
+          type: sequence
+          label: 'Fields'
+          sequence:
+            type: string
+            label: 'Field name'

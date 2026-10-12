@@ -1,0 +1,7 @@
+name: 'Views Network'
+type: module
+description: 'Views style that displays the result rows as a network graph, with edges from entity reference fields or other edge sources.'
+package: Views
+core_version_requirement: ^10.3 || ^11
+dependencies:
+  - drupal:views

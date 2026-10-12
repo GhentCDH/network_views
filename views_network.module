@@ -1,0 +1,21 @@
+<?php
+
+/**
+ * @file
+ * Hooks for the views_network module.
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function views_network_theme(): array {
+  return [
+    'views_network' => [
+      'variables' => [
+        'attributes' => [],
+        'canvas_attributes' => [],
+        'legend' => [],
+      ],
+    ],
+  ];
+}

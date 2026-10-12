@@ -1,0 +1,14 @@
+views_network.edge_source.relation_nodes:
+  type: views_network_edge_source
+  label: 'Relation nodes'
+  mapping:
+    settings:
+      type: mapping
+      label: 'Settings'
+      mapping:
+        bundles:
+          type: sequence
+          label: 'Relation types'
+          sequence:
+            type: string
+            label: 'Content type'

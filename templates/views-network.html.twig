@@ -1,0 +1,33 @@
+{#
+/**
+ * @file
+ * Default theme implementation for a network view.
+ *
+ * Available variables:
+ * - attributes: HTML attributes for the wrapper.
+ * - canvas_attributes: HTML attributes for the graph container, including the
+ *   graph data in data-views-network.
+ * - legend: The legend, with optional keys:
+ *   - nodes: List of node categories, each with label, color and count.
+ *   - edges: List of edge types, each with label, color and count.
+ *
+ * @ingroup themeable
+ */
+#}
+<div{{ attributes }}>
+  <div{{ canvas_attributes }}></div>
+  {% if legend %}
+    <div class="views-network__legend">
+      {% for group, items in legend %}
+        <ul class="views-network__legend-list views-network__legend-list--{{ group }}">
+          {% for item in items %}
+            <li class="views-network__legend-item">
+              <span class="views-network__swatch views-network__swatch--{{ group }}" style="--views-network-swatch: {{ item.color }}"></span>
+              {{ item.label }} <span class="views-network__count">({{ item.count }})</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
