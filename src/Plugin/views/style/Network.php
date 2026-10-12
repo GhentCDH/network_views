@@ -331,8 +331,11 @@ class Network extends StylePluginBase {
     $entities = [];
     $rows = [];
     foreach ($this->view->result as $index => $row) {
-      $entity = $row->_entity ?? NULL;
-      if ($entity instanceof EntityInterface && !isset($entities[$entity->id()])) {
+      // ResultRow::$_entity is documented as not nullable, but it is NULL
+      // when the entity could not be loaded.
+      /** @var \Drupal\Core\Entity\EntityInterface|null $entity */
+      $entity = $row->_entity;
+      if ($entity && !isset($entities[$entity->id()])) {
         $entities[$entity->id()] = $this->entityRepository->getTranslationFromContext($entity);
         $rows[$entity->id()] = $index;
       }

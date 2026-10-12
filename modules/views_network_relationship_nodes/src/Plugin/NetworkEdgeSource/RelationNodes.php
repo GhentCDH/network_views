@@ -121,22 +121,22 @@ class RelationNodes extends EdgeSourcePluginBase implements ContainerFactoryPlug
         ->condition($field_1, $chunk, 'IN')
         ->condition($field_2, $ids, 'IN')
         ->execute();
+      /** @var \Drupal\node\NodeInterface $relation */
       foreach ($storage->loadMultiple($relation_ids) as $relation) {
-        if (!$relation instanceof NodeInterface || !$relation->access('view')) {
+        if (!$relation->access('view')) {
           continue;
         }
         [$type, $label] = $this->relationType($relation, $type_field);
-        foreach ($relation->get($field_1) as $source) {
-          foreach ($relation->get($field_2) as $target) {
-            if ($source->target_id === NULL || $target->target_id === NULL) {
-              continue;
-            }
+        $sources = array_filter(array_column($relation->get($field_1)->getValue(), 'target_id'));
+        $targets = array_filter(array_column($relation->get($field_2)->getValue(), 'target_id'));
+        foreach ($sources as $source_id) {
+          foreach ($targets as $target_id) {
             $edges[] = new Edge(
-              id: implode(':', ['relation', $relation->id(), $source->target_id, $target->target_id]),
+              id: implode(':', ['relation', $relation->id(), $source_id, $target_id]),
               sourceEntityType: 'node',
-              sourceId: $source->target_id,
+              sourceId: $source_id,
               targetEntityType: 'node',
-              targetId: $target->target_id,
+              targetId: $target_id,
               type: $type,
               typeLabel: $label,
             );

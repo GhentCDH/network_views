@@ -99,16 +99,13 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
         $definition = $entity->getFieldDefinition($field_name);
         $target_type = $definition->getFieldStorageDefinition()->getSetting('target_type');
         $label = (string) $definition->getLabel();
-        foreach ($entity->get($field_name) as $item) {
-          if ($item->target_id === NULL) {
-            continue;
-          }
+        foreach (array_filter(array_column($entity->get($field_name)->getValue(), 'target_id')) as $target_id) {
           $edges[] = new Edge(
-            id: implode(':', [$field_name, $entity->id(), $item->target_id]),
+            id: implode(':', [$field_name, $entity->id(), $target_id]),
             sourceEntityType: $entity->getEntityTypeId(),
             sourceId: $entity->id(),
             targetEntityType: $target_type,
-            targetId: $item->target_id,
+            targetId: $target_id,
             type: 'field:' . $field_name,
             typeLabel: $label,
           );
