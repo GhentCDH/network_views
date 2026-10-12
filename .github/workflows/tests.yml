@@ -1,0 +1,38 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  # Weekly, to notice breaking changes in Drupal core or in the dev branch of
+  # relationship_nodes.
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  tests:
+    name: Drupal ${{ matrix.drupal }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - drupal: '^10.3'
+            # PHPStan runs on Drupal 11 only: on older cores, newer core
+            # classes are reported missing.
+            phpstan: false
+          - drupal: '^11'
+            phpstan: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, gd
+          tools: composer:v2
+          coverage: none
+      - name: Build and test
+        env:
+          DRUPAL_CORE: ${{ matrix.drupal }}
+          VN_PHPSTAN: ${{ matrix.phpstan && '1' || '0' }}
+          SIMPLETEST_BASE_URL: http://localhost:8080
+        run: .github/run-tests.sh

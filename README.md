@@ -9,7 +9,7 @@ A Views style that displays the result rows as a network graph, rendered with [C
 
 - Drupal 10.3 or later, or Drupal 11
 - Views
-- For the `views_network_relationship_nodes` submodule: [`relationship_nodes`](https://github.com/GhentCDH/relationship_nodes)
+- For the `views_network_relationship_nodes` submodule: [`relationship_nodes`](https://github.com/GhentCDH/relationship_nodes). The tests run against its `dev` branch: the 1.0.0-beta2 release fails on Drupal 11.4 when relation fields are saved.
 
 Cytoscape.js 3.30.2 is loaded from cdnjs.cloudflare.com (see `views_network.libraries.yml`).
 

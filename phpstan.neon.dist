@@ -1,0 +1,11 @@
+# PHPStan configuration, used by .github/run-tests.sh. Requires
+# mglaman/phpstan-drupal and phpstan/extension-installer (in drupal/core-dev).
+parameters:
+  level: 5
+  paths:
+    - .
+  excludePaths:
+    - vendor (?)
+  ignoreErrors:
+    # Drupal plugins and forms are constructed with new static().
+    - identifier: new.static
