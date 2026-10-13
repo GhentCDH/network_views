@@ -3,8 +3,7 @@ name: Tests
 on:
   push:
   pull_request:
-  # Weekly, to notice breaking changes in Drupal core or in the dev branch of
-  # relationship_nodes.
+  # Weekly, to notice breaking changes in Drupal core.
   schedule:
     - cron: '0 6 * * 1'
 

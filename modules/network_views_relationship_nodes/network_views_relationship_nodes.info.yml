@@ -1,8 +1,0 @@
-name: 'Network Views: Relationship Nodes'
-type: module
-description: 'Shows the relation nodes of relationship_nodes as edges in network views.'
-package: Views
-core_version_requirement: ^10.3 || ^11.2
-dependencies:
-  - network_views:network_views
-  - relationship_nodes:relationship_nodes

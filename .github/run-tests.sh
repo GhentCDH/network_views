@@ -9,8 +9,6 @@
 #                         cores, newer core classes are reported missing).
 #   SIMPLETEST_BASE_URL   URL of the web server that this script starts for the
 #                         functional tests (default http://localhost:8080).
-#   RELATIONSHIP_NODES    Composer constraint for drupal/relationship_nodes
-#                         (default dev-dev).
 #   BUILD_DIR             Where the Drupal project is built (default /tmp/nv-build).
 set -euo pipefail
 
@@ -26,16 +24,10 @@ composer config prefer-stable true
 composer config --no-plugins allow-plugins.symfony/runtime true
 composer config --no-plugins allow-plugins.tbachert/spi false
 composer config repositories.network_views '{"type": "path", "url": "'"$MODULE_DIR"'", "options": {"symlink": false}}'
-# relationship_nodes is needed by the network_views_relationship_nodes
-# submodule and its tests. Its dev branch is used until the changes since
-# 1.0.0-beta2 are released: 1.0.0-beta2 fails on Drupal 11.4.
-RELATIONSHIP_NODES="${RELATIONSHIP_NODES:-dev-dev}"
-composer config repositories.relationship_nodes '{"type": "vcs", "url": "https://github.com/GhentCDH/relationship_nodes"}'
 composer require --no-interaction -W \
   "drupal/core-recommended:$DRUPAL_CORE" \
   "drupal/core-composer-scaffold:$DRUPAL_CORE" \
-  "drupal/network_views:*@dev" \
-  "drupal/relationship_nodes:$RELATIONSHIP_NODES"
+  "drupal/network_views:*@dev"
 composer require --no-interaction -W --dev "drupal/core-dev:$DRUPAL_CORE"
 
 MODULE="$BUILD_DIR/web/modules/contrib/network_views"

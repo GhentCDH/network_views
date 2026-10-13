@@ -6,8 +6,5 @@
   "keywords": ["drupal", "views", "network", "graph", "cytoscape", "visualization"],
   "require": {
     "drupal/core": "^10.3 || ^11"
-  },
-  "suggest": {
-    "drupal/relationship_nodes": "Required by the network_views_relationship_nodes submodule (relation nodes as edges)."
   }
 }
