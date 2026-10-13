@@ -5,6 +5,9 @@
 ((Drupal, once, cytoscape) => {
   const instances = new WeakMap();
 
+  // Small graphs are not zoomed in further than this when they are fitted.
+  const MAX_FIT_ZOOM = 1.25;
+
   /**
    * Returns the Cytoscape layout options for a layout name.
    */
@@ -14,12 +17,13 @@
       case 'concentric':
         return {
           ...shared,
-          concentric: (node) => node.degree(),
+          // The root (of an ego network) in the center, then by degree.
+          concentric: (node) => node.degree() + (node.data('root') ? 1000 : 0),
           levelWidth: () => 2,
           minNodeSpacing: 20,
         };
       case 'breadthfirst':
-        return { ...shared, directed, spacingFactor: 1.2 };
+        return { ...shared, directed, spacingFactor: 1.2, roots: '[?root]' };
       case 'circle':
       case 'grid':
         return shared;
@@ -27,8 +31,11 @@
         return {
           ...shared,
           name: 'cose',
-          nodeRepulsion: () => 8000,
-          idealEdgeLength: () => 80,
+          // Labels count as part of the nodes, so that they do not overlap.
+          nodeDimensionsIncludeLabels: true,
+          nodeRepulsion: () => 40000,
+          idealEdgeLength: () => 120,
+          componentSpacing: 60,
           randomize: false,
         };
     }
@@ -158,6 +165,10 @@
       wheelSensitivity: 0.3,
     });
     instances.set(canvas, cy);
+    if (cy.zoom() > MAX_FIT_ZOOM) {
+      cy.zoom(MAX_FIT_ZOOM);
+      cy.center();
+    }
 
     const tooltip = document.createElement('div');
     tooltip.className = 'network-views__tooltip';
