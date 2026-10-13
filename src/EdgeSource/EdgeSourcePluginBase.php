@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network\EdgeSource;
+namespace Drupal\network_views\EdgeSource;
 
 use Drupal\Core\Cache\UnchangingCacheableDependencyTrait;
 use Drupal\Core\Plugin\PluginBase;

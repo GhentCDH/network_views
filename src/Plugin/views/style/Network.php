@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network\Plugin\views\style;
+namespace Drupal\network_views\Plugin\views\style;
 
 use Drupal\Component\Utility\Html;
 use Drupal\Core\Cache\CacheableMetadata;
@@ -16,9 +16,9 @@ use Drupal\Core\Template\Attribute;
 use Drupal\views\Attribute\ViewsStyle;
 use Drupal\views\Plugin\views\field\EntityField;
 use Drupal\views\Plugin\views\style\StylePluginBase;
-use Drupal\views_network\EdgeSource\EdgeSourceInterface;
-use Drupal\views_network\EdgeSource\EdgeSourceManager;
-use Drupal\views_network\Palette;
+use Drupal\network_views\EdgeSource\EdgeSourceInterface;
+use Drupal\network_views\EdgeSource\EdgeSourceManager;
+use Drupal\network_views\Palette;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -74,7 +74,7 @@ class Network extends StylePluginBase {
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
-    $instance->edgeSourceManager = $container->get('plugin.manager.views_network.edge_source');
+    $instance->edgeSourceManager = $container->get('plugin.manager.network_views.edge_source');
     $instance->entityRepository = $container->get('entity.repository');
     $instance->bundleInfo = $container->get('entity_type.bundle.info');
     return $instance;
@@ -427,12 +427,12 @@ class Network extends StylePluginBase {
     }
 
     $build = [
-      '#theme' => 'views_network',
-      '#attributes' => ['class' => ['views-network']],
+      '#theme' => 'network_views',
+      '#attributes' => ['class' => ['network-views']],
       '#canvas_attributes' => new Attribute([
-        'class' => ['views-network__canvas'],
+        'class' => ['network-views__canvas'],
         'style' => 'height: ' . $this->options['height'],
-        'data-views-network' => json_encode($graph, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'data-network-views' => json_encode($graph, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         'role' => 'img',
         'aria-label' => $this->t('Network of @nodes items and @edges connections', [
           '@nodes' => count($nodes),
@@ -440,7 +440,7 @@ class Network extends StylePluginBase {
         ]),
       ]),
       '#legend' => $legend,
-      '#attached' => ['library' => ['views_network/network']],
+      '#attached' => ['library' => ['network_views/network']],
     ];
     $cacheability->applyTo($build);
     return $build;
@@ -496,7 +496,7 @@ class Network extends StylePluginBase {
   /**
    * Returns the enabled edge source plugins, or all of them.
    *
-   * @return \Drupal\views_network\EdgeSource\EdgeSourceInterface[]
+   * @return \Drupal\network_views\EdgeSource\EdgeSourceInterface[]
    *   The edge sources, keyed by plugin ID.
    */
   protected function getEdgeSources(bool $enabled_only = TRUE): array {
@@ -536,8 +536,8 @@ class Network extends StylePluginBase {
         continue;
       }
       $label = $handler->label();
-      $html .= '<div class="views-network__tooltip-field">'
-        . ($label !== '' ? '<span class="views-network__tooltip-label">' . Html::escape($label) . ':</span> ' : '')
+      $html .= '<div class="network-views__tooltip-field">'
+        . ($label !== '' ? '<span class="network-views__tooltip-label">' . Html::escape($label) . ':</span> ' : '')
         . $value . '</div>';
     }
     return $html;

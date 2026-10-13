@@ -1,0 +1,4 @@
+services:
+  plugin.manager.network_views.edge_source:
+    class: Drupal\network_views\EdgeSource\EdgeSourceManager
+    parent: default_plugin_manager

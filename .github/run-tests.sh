@@ -5,17 +5,17 @@
 #
 # Environment:
 #   DRUPAL_CORE           Composer constraint for drupal/core (e.g. ^10.3, ^11).
-#   VN_PHPSTAN            Optional; 1 runs PHPStan (with Drupal 11: on older
+#   NV_PHPSTAN            Optional; 1 runs PHPStan (with Drupal 11: on older
 #                         cores, newer core classes are reported missing).
 #   SIMPLETEST_BASE_URL   URL of the web server that this script starts for the
 #                         functional tests (default http://localhost:8080).
 #   RELATIONSHIP_NODES    Composer constraint for drupal/relationship_nodes
 #                         (default dev-dev).
-#   BUILD_DIR             Where the Drupal project is built (default /tmp/vn-build).
+#   BUILD_DIR             Where the Drupal project is built (default /tmp/nv-build).
 set -euo pipefail
 
 MODULE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="${BUILD_DIR:-/tmp/vn-build}"
+BUILD_DIR="${BUILD_DIR:-/tmp/nv-build}"
 DRUPAL_CORE="${DRUPAL_CORE:-^11}"
 
 rm -rf "$BUILD_DIR"
@@ -25,8 +25,8 @@ composer config minimum-stability dev
 composer config prefer-stable true
 composer config --no-plugins allow-plugins.symfony/runtime true
 composer config --no-plugins allow-plugins.tbachert/spi false
-composer config repositories.views_network '{"type": "path", "url": "'"$MODULE_DIR"'", "options": {"symlink": false}}'
-# relationship_nodes is needed by the views_network_relationship_nodes
+composer config repositories.network_views '{"type": "path", "url": "'"$MODULE_DIR"'", "options": {"symlink": false}}'
+# relationship_nodes is needed by the network_views_relationship_nodes
 # submodule and its tests. Its dev branch is used until the changes since
 # 1.0.0-beta2 are released: 1.0.0-beta2 fails on Drupal 11.4.
 RELATIONSHIP_NODES="${RELATIONSHIP_NODES:-dev-dev}"
@@ -34,16 +34,16 @@ composer config repositories.relationship_nodes '{"type": "vcs", "url": "https:/
 composer require --no-interaction -W \
   "drupal/core-recommended:$DRUPAL_CORE" \
   "drupal/core-composer-scaffold:$DRUPAL_CORE" \
-  "drupal/views_network:*@dev" \
+  "drupal/network_views:*@dev" \
   "drupal/relationship_nodes:$RELATIONSHIP_NODES"
 composer require --no-interaction -W --dev "drupal/core-dev:$DRUPAL_CORE"
 
-MODULE="$BUILD_DIR/web/modules/contrib/views_network"
+MODULE="$BUILD_DIR/web/modules/contrib/network_views"
 
 echo "== Coding standards"
 vendor/bin/phpcs --standard=Drupal,DrupalPractice --extensions=php,module,install,inc,yml "$MODULE"
 
-if [ "${VN_PHPSTAN:-0}" = 1 ]; then
+if [ "${NV_PHPSTAN:-0}" = 1 ]; then
   echo "== PHPStan"
   vendor/bin/phpstan analyse --no-progress --memory-limit=1G -c "$MODULE/phpstan.neon.dist" "$MODULE"
 fi

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network\Attribute;
+namespace Drupal\network_views\Attribute;
 
 use Drupal\Component\Plugin\Attribute\Plugin;
 use Drupal\Core\StringTranslation\TranslatableMarkup;

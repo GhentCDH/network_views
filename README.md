@@ -1,4 +1,4 @@
-# views_network
+# network_views
 
 A Views style that displays the result rows as a network graph, rendered with [Cytoscape.js](https://js.cytoscape.org/).
 
@@ -9,9 +9,9 @@ A Views style that displays the result rows as a network graph, rendered with [C
 
 - Drupal 10.3 or later, or Drupal 11
 - Views
-- For the `views_network_relationship_nodes` submodule: [`relationship_nodes`](https://github.com/GhentCDH/relationship_nodes). The tests run against its `dev` branch: the 1.0.0-beta2 release fails on Drupal 11.4 when relation fields are saved.
+- For the `network_views_relationship_nodes` submodule: [`relationship_nodes`](https://github.com/GhentCDH/relationship_nodes). The tests run against its `dev` branch: the 1.0.0-beta2 release fails on Drupal 11.4 when relation fields are saved.
 
-Cytoscape.js 3.30.2 is loaded from cdnjs.cloudflare.com (see `views_network.libraries.yml`).
+Cytoscape.js 3.30.2 is loaded from cdnjs.cloudflare.com (see `network_views.libraries.yml`).
 
 ## Installation
 
@@ -21,7 +21,7 @@ Add the repository to your project's `composer.json`:
 "repositories": [
   {
     "type": "vcs",
-    "url": "https://github.com/GhentCDH/views_network"
+    "url": "https://github.com/GhentCDH/network_views"
   }
 ]
 ```
@@ -29,9 +29,9 @@ Add the repository to your project's `composer.json`:
 Then require and enable the module (and optionally the submodule):
 
 ```bash
-composer require "drupal/views_network:dev-main"
-drush en views_network
-drush en views_network_relationship_nodes
+composer require "drupal/network_views:dev-main"
+drush en network_views
+drush en network_views_relationship_nodes
 ```
 
 ## Usage
@@ -63,18 +63,18 @@ Clicking a node opens the entity; hovering a node highlights its neighbourhood.
 
 | Plugin | Module | Edges |
 |---|---|---|
-| Entity reference fields | `views_network` | A reference from one result row to another, in the selected fields. Labeled with the field label. |
-| Relation nodes | `views_network_relationship_nodes` | A relation node of `relationship_nodes` between two result rows, directed from `rn_related_entity_1` to `rn_related_entity_2`. Labeled with the relation type term, or the relation content type for untyped relations. Relation nodes the user may not view are left out. |
+| Entity reference fields | `network_views` | A reference from one result row to another, in the selected fields. Labeled with the field label. |
+| Relation nodes | `network_views_relationship_nodes` | A relation node of `relationship_nodes` between two result rows, directed from `rn_related_entity_1` to `rn_related_entity_2`. Labeled with the relation type term, or the relation content type for untyped relations. Relation nodes the user may not view are left out. |
 
 The relation nodes themselves are not graph nodes: filter them out of the view (e.g. by content type), and they become edges.
 
 ### Writing an edge source
 
-An edge source is a plugin in `src/Plugin/NetworkEdgeSource/` with the `#[NetworkEdgeSource]` attribute, implementing `EdgeSourceInterface` (usually by extending `EdgeSourcePluginBase`). `getEdges()` receives the result entities keyed by ID and returns `Edge` objects; the style drops the edges whose ends are not both in the result. Provide a config schema `views_network.edge_source.PLUGIN_ID` of type `views_network_edge_source` for the settings, and the cacheability of the edges through the plugin's `getCacheTags()`/`getCacheContexts()`.
+An edge source is a plugin in `src/Plugin/NetworkEdgeSource/` with the `#[NetworkEdgeSource]` attribute, implementing `EdgeSourceInterface` (usually by extending `EdgeSourcePluginBase`). `getEdges()` receives the result entities keyed by ID and returns `Edge` objects; the style drops the edges whose ends are not both in the result. Provide a config schema `network_views.edge_source.PLUGIN_ID` of type `network_views_edge_source` for the settings, and the cacheability of the edges through the plugin's `getCacheTags()`/`getCacheContexts()`.
 
 ## Theming
 
-The template is `views-network.html.twig`. The graph data is a JSON object in the `data-views-network` attribute of the canvas element (`nodes`, `edges` and `settings`), read by `js/views-network.js`.
+The template is `network-views.html.twig`. The graph data is a JSON object in the `data-network-views` attribute of the canvas element (`nodes`, `edges` and `settings`), read by `js/network-views.js`.
 
 ## Development
 
@@ -82,7 +82,7 @@ Unit, kernel and functional tests are in `tests/` and in the submodule's `tests/
 
 ```bash
 SIMPLETEST_DB=sqlite://localhost//tmp/test.sqlite SIMPLETEST_BASE_URL=http://127.0.0.1:8080 \
-  vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/contrib/views_network
+  vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/contrib/network_views
 ```
 
 ## Known limitations and ideas

@@ -12,11 +12,11 @@ cytoscape:
 
 network:
   js:
-    js/views-network.js: {}
+    js/network-views.js: {}
   css:
     component:
-      css/views-network.css: {}
+      css/network-views.css: {}
   dependencies:
     - core/drupal
     - core/once
-    - views_network/cytoscape
+    - network_views/cytoscape

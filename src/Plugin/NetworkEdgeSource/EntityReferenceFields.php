@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network\Plugin\NetworkEdgeSource;
+namespace Drupal\network_views\Plugin\NetworkEdgeSource;
 
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
-use Drupal\views_network\Attribute\NetworkEdgeSource;
-use Drupal\views_network\EdgeSource\Edge;
-use Drupal\views_network\EdgeSource\EdgeSourcePluginBase;
+use Drupal\network_views\Attribute\NetworkEdgeSource;
+use Drupal\network_views\EdgeSource\Edge;
+use Drupal\network_views\EdgeSource\EdgeSourcePluginBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**

@@ -33,6 +33,6 @@ jobs:
       - name: Build and test
         env:
           DRUPAL_CORE: ${{ matrix.drupal }}
-          VN_PHPSTAN: ${{ matrix.phpstan && '1' || '0' }}
+          NV_PHPSTAN: ${{ matrix.phpstan && '1' || '0' }}
           SIMPLETEST_BASE_URL: http://localhost:8080
         run: .github/run-tests.sh

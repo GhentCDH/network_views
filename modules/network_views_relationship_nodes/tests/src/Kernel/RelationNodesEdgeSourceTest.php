@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\views_network_relationship_nodes\Kernel;
+namespace Drupal\Tests\network_views_relationship_nodes\Kernel;
 
 use Drupal\Core\Session\AnonymousUserSession;
 use Drupal\field\Entity\FieldConfig;
@@ -14,7 +14,7 @@ use Drupal\taxonomy\Entity\Term;
 use Drupal\taxonomy\Entity\Vocabulary;
 use Drupal\taxonomy\TermInterface;
 use Drupal\Tests\user\Traits\UserCreationTrait;
-use Drupal\Tests\views_network\Traits\NetworkViewTrait;
+use Drupal\Tests\network_views\Traits\NetworkViewTrait;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
 use PHPUnit\Framework\Attributes\Group;
@@ -26,9 +26,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * Sets up a person content type with a typed person–person relation, as the
  * relationship_nodes UI does.
  *
- * @group views_network
+ * @group network_views
  */
-#[Group('views_network')]
+#[Group('network_views')]
 #[RunTestsInSeparateProcesses]
 class RelationNodesEdgeSourceTest extends KernelTestBase {
 
@@ -51,8 +51,8 @@ class RelationNodesEdgeSourceTest extends KernelTestBase {
     'inline_entity_form',
     'relationship_nodes',
     'views',
-    'views_network',
-    'views_network_relationship_nodes',
+    'network_views',
+    'network_views_relationship_nodes',
   ];
 
   /**
@@ -165,7 +165,7 @@ class RelationNodesEdgeSourceTest extends KernelTestBase {
 
     $this->container->get('account_switcher')->switchTo(new AnonymousUserSession());
     $build = $this->renderNetwork();
-    $graph = json_decode($build['#canvas_attributes']->toArray()['data-views-network'], TRUE);
+    $graph = json_decode($build['#canvas_attributes']->toArray()['data-network-views'], TRUE);
 
     // The relation nodes are edges, not graph nodes; the unpublished relation
     // and the unpublished person are left out.

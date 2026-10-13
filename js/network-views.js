@@ -114,7 +114,7 @@
   function init(canvas) {
     let graph;
     try {
-      graph = JSON.parse(canvas.dataset.viewsNetwork);
+      graph = JSON.parse(canvas.dataset.networkViews);
     } catch (e) {
       return;
     }
@@ -136,7 +136,7 @@
     instances.set(canvas, cy);
 
     const tooltip = document.createElement('div');
-    tooltip.className = 'views-network__tooltip';
+    tooltip.className = 'network-views__tooltip';
     tooltip.setAttribute('role', 'tooltip');
     tooltip.hidden = true;
     canvas.parentNode.insertBefore(tooltip, canvas.nextSibling);
@@ -174,16 +174,16 @@
    *
    * @type {Drupal~behavior}
    */
-  Drupal.behaviors.viewsNetwork = {
+  Drupal.behaviors.networkViews = {
     attach(context) {
-      once('views-network', '[data-views-network]', context).forEach(init);
+      once('network-views', '[data-network-views]', context).forEach(init);
     },
     detach(context, settings, trigger) {
       if (trigger !== 'unload') {
         return;
       }
       once
-        .remove('views-network', '[data-views-network]', context)
+        .remove('network-views', '[data-network-views]', context)
         .forEach((canvas) => {
           instances.get(canvas)?.destroy();
           instances.delete(canvas);

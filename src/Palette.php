@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network;
+namespace Drupal\network_views;
 
 /**
  * Assigns colors from a categorical palette to values.

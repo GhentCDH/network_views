@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network\EdgeSource;
+namespace Drupal\network_views\EdgeSource;
 
 use Drupal\Component\Plugin\ConfigurableInterface;
 use Drupal\Component\Plugin\PluginInspectionInterface;
@@ -61,7 +61,7 @@ interface EdgeSourceInterface extends PluginInspectionInterface, ConfigurableInt
    *   The entities of the result rows, keyed by entity ID, all of the base
    *   entity type of the view.
    *
-   * @return \Drupal\views_network\EdgeSource\Edge[]
+   * @return \Drupal\network_views\EdgeSource\Edge[]
    *   The edges.
    */
   public function getEdges(array $entities): array;

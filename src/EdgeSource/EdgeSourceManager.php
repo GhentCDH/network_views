@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network\EdgeSource;
+namespace Drupal\network_views\EdgeSource;
 
 use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Plugin\DefaultPluginManager;
-use Drupal\views_network\Attribute\NetworkEdgeSource;
+use Drupal\network_views\Attribute\NetworkEdgeSource;
 
 /**
  * Plugin manager for network edge sources.
@@ -22,8 +22,8 @@ class EdgeSourceManager extends DefaultPluginManager {
       EdgeSourceInterface::class,
       NetworkEdgeSource::class,
     );
-    $this->alterInfo('views_network_edge_source_info');
-    $this->setCacheBackend($cache_backend, 'views_network_edge_source_plugins');
+    $this->alterInfo('network_views_edge_source_info');
+    $this->setCacheBackend($cache_backend, 'network_views_edge_source_plugins');
   }
 
   /**

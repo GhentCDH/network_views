@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\views_network\Traits;
+namespace Drupal\Tests\network_views\Traits;
 
 use Drupal\views\Entity\View;
 use Drupal\views\Views;
@@ -105,7 +105,7 @@ trait NetworkViewTrait {
   protected function getGraph(): array {
     $build = $this->renderNetwork();
     $this->assertArrayHasKey('#canvas_attributes', $build);
-    return json_decode($build['#canvas_attributes']->toArray()['data-views-network'], TRUE);
+    return json_decode($build['#canvas_attributes']->toArray()['data-network-views'], TRUE);
   }
 
   /**

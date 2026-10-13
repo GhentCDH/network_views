@@ -3,18 +3,18 @@
  * Styles for network views.
  */
 
-.views-network {
+.network-views {
   position: relative;
 }
 
-.views-network__canvas {
+.network-views__canvas {
   width: 100%;
   min-height: 200px;
   border: 1px solid rgb(0 0 0 / 0.12);
   border-radius: 4px;
 }
 
-.views-network__tooltip {
+.network-views__tooltip {
   position: absolute;
   z-index: 10;
   max-width: 320px;
@@ -30,15 +30,15 @@
   line-height: 1.4;
 }
 
-.views-network__tooltip[hidden] {
+.network-views__tooltip[hidden] {
   display: none;
 }
 
-.views-network__tooltip-label {
+.network-views__tooltip-label {
   font-weight: bold;
 }
 
-.views-network__legend {
+.network-views__legend {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25em 2em;
@@ -46,7 +46,7 @@
   font-size: 0.875rem;
 }
 
-.views-network__legend-list {
+.network-views__legend-list {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25em 1em;
@@ -55,30 +55,30 @@
   list-style: none;
 }
 
-.views-network__legend-item {
+.network-views__legend-item {
   display: flex;
   align-items: center;
   gap: 0.4em;
   margin: 0;
 }
 
-.views-network__swatch {
+.network-views__swatch {
   display: inline-block;
   flex-shrink: 0;
-  background: var(--views-network-swatch);
+  background: var(--network-views-swatch);
 }
 
-.views-network__swatch--nodes {
+.network-views__swatch--nodes {
   width: 0.8em;
   height: 0.8em;
   border-radius: 50%;
 }
 
-.views-network__swatch--edges {
+.network-views__swatch--edges {
   width: 1.4em;
   height: 3px;
 }
 
-.views-network__count {
+.network-views__count {
   opacity: 0.7;
 }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network\EdgeSource;
+namespace Drupal\network_views\EdgeSource;
 
 /**
  * An edge between two entities of a network view.

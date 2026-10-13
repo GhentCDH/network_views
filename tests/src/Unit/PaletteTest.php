@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\views_network\Unit;
+namespace Drupal\Tests\network_views\Unit;
 
 use Drupal\Tests\UnitTestCase;
-use Drupal\views_network\Palette;
-use Drupal\views_network\Plugin\views\style\Network;
+use Drupal\network_views\Palette;
+use Drupal\network_views\Plugin\views\style\Network;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
 
 /**
  * Tests the color assignment and parsing.
  *
- * @group views_network
+ * @group network_views
  */
-#[Group('views_network')]
+#[Group('network_views')]
 #[CoversClass(Palette::class)]
 class PaletteTest extends UnitTestCase {
 

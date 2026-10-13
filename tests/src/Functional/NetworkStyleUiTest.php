@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\views_network\Functional;
+namespace Drupal\Tests\network_views\Functional;
 
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\node\Entity\Node;
 use Drupal\Tests\BrowserTestBase;
-use Drupal\Tests\views_network\Traits\NetworkViewTrait;
+use Drupal\Tests\network_views\Traits\NetworkViewTrait;
 use Drupal\views\Entity\View;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -16,9 +16,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 /**
  * Tests the options form of the network style and the rendered page.
  *
- * @group views_network
+ * @group network_views
  */
-#[Group('views_network')]
+#[Group('network_views')]
 #[RunTestsInSeparateProcesses]
 class NetworkStyleUiTest extends BrowserTestBase {
 
@@ -27,7 +27,7 @@ class NetworkStyleUiTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['node', 'views', 'views_ui', 'views_network'];
+  protected static $modules = ['node', 'views', 'views_ui', 'network_views'];
 
   /**
    * {@inheritdoc}
@@ -92,13 +92,13 @@ class NetworkStyleUiTest extends BrowserTestBase {
     ], $options['edge_sources']);
 
     $this->drupalGet('network');
-    $canvas = $this->assertSession()->elementExists('css', '.views-network__canvas');
+    $canvas = $this->assertSession()->elementExists('css', '.network-views__canvas');
     $this->assertSame('height: 400px', $canvas->getAttribute('style'));
-    $graph = json_decode($canvas->getAttribute('data-views-network'), TRUE);
+    $graph = json_decode($canvas->getAttribute('data-network-views'), TRUE);
     $this->assertSame(['Ann > Bob: Knows'], $this->edgeList($graph));
     $this->assertSame('circle', $graph['settings']['layout']);
     $this->assertSame(['#123456'], array_unique(array_column($graph['nodes'], 'color')));
-    $this->assertSession()->elementTextContains('css', '.views-network__legend', 'Person (2)');
+    $this->assertSession()->elementTextContains('css', '.network-views__legend', 'Person (2)');
   }
 
 }

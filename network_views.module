@@ -2,15 +2,15 @@
 
 /**
  * @file
- * Hooks for the views_network module.
+ * Hooks for the network_views module.
  */
 
 /**
  * Implements hook_theme().
  */
-function views_network_theme(): array {
+function network_views_theme(): array {
   return [
-    'views_network' => [
+    'network_views' => [
       'variables' => [
         'attributes' => [],
         'canvas_attributes' => [],

@@ -1,4 +1,4 @@
-name: 'Views Network'
+name: 'Network Views'
 type: module
 description: 'Views style that displays the result rows as a network graph, with edges from entity reference fields or other edge sources.'
 package: Views

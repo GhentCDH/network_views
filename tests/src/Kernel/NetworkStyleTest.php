@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\views_network\Kernel;
+namespace Drupal\Tests\network_views\Kernel;
 
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
@@ -11,7 +11,7 @@ use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
 use Drupal\Tests\user\Traits\UserCreationTrait;
-use Drupal\Tests\views_network\Traits\NetworkViewTrait;
+use Drupal\Tests\network_views\Traits\NetworkViewTrait;
 use Drupal\views\Views;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -19,9 +19,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 /**
  * Tests the network style with entity reference edges.
  *
- * @group views_network
+ * @group network_views
  */
-#[Group('views_network')]
+#[Group('network_views')]
 #[RunTestsInSeparateProcesses]
 class NetworkStyleTest extends KernelTestBase {
 
@@ -39,7 +39,7 @@ class NetworkStyleTest extends KernelTestBase {
     'text',
     'node',
     'views',
-    'views_network',
+    'network_views',
   ];
 
   /**
@@ -158,7 +158,7 @@ class NetworkStyleTest extends KernelTestBase {
   public function testColorsAndLegend(): void {
     $this->createNetworkView($this->options(['colors' => "Place|#000000"]), ['person', 'place']);
     $build = $this->renderNetwork();
-    $graph = json_decode($build['#canvas_attributes']->toArray()['data-views-network'], TRUE);
+    $graph = json_decode($build['#canvas_attributes']->toArray()['data-network-views'], TRUE);
 
     $colors = array_column($graph['nodes'], 'color', 'label');
     $this->assertSame('#000000', $colors['Gent']);
@@ -181,7 +181,7 @@ class NetworkStyleTest extends KernelTestBase {
     $graph = $this->getGraph();
     $this->assertCount(4, array_unique(array_column($graph['nodes'], 'color')));
     $this->assertSame('Ann', $graph['nodes'][3]['category']);
-    $this->assertStringContainsString('<span class="views-network__tooltip-label">Title:</span> Ann', $graph['nodes'][3]['tooltip']);
+    $this->assertStringContainsString('<span class="network-views__tooltip-label">Title:</span> Ann', $graph['nodes'][3]['tooltip']);
   }
 
   /**
@@ -193,11 +193,11 @@ class NetworkStyleTest extends KernelTestBase {
     $build = $view->preview('default');
     $html = (string) $this->container->get('renderer')->renderRoot($build);
 
-    $this->assertStringContainsString('class="views-network"', $html);
-    $this->assertStringContainsString('data-views-network="', $html);
+    $this->assertStringContainsString('class="network-views"', $html);
+    $this->assertStringContainsString('data-network-views="', $html);
     $this->assertStringContainsString('style="height: 600px"', $html);
-    $this->assertStringContainsString('views-network__legend', $html);
-    $this->assertContains('views_network/network', $build['#attached']['library']);
+    $this->assertStringContainsString('network-views__legend', $html);
+    $this->assertContains('network_views/network', $build['#attached']['library']);
   }
 
 }

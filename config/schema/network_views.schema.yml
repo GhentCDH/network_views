@@ -27,7 +27,7 @@ views.style.network:
       type: sequence
       label: 'Edge sources'
       sequence:
-        type: views_network.edge_source.[%key]
+        type: network_views.edge_source.[%key]
     directed:
       type: boolean
       label: 'Directed edges'
@@ -53,7 +53,7 @@ views.style.network:
       type: boolean
       label: 'Show a legend'
 
-views_network_edge_source:
+network_views_edge_source:
   type: mapping
   label: 'Edge source'
   mapping:
@@ -64,11 +64,11 @@ views_network_edge_source:
       type: mapping
       label: 'Settings'
 
-views_network.edge_source.*:
-  type: views_network_edge_source
+network_views.edge_source.*:
+  type: network_views_edge_source
 
-views_network.edge_source.entity_reference_fields:
-  type: views_network_edge_source
+network_views.edge_source.entity_reference_fields:
+  type: network_views_edge_source
   label: 'Entity reference fields'
   mapping:
     settings:

@@ -1,5 +1,5 @@
 {
-  "name": "drupal/views_network",
+  "name": "drupal/network_views",
   "description": "Views style that displays the result rows as a network graph (Cytoscape.js).",
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
@@ -8,6 +8,6 @@
     "drupal/core": "^10.3 || ^11"
   },
   "suggest": {
-    "drupal/relationship_nodes": "Required by the views_network_relationship_nodes submodule (relation nodes as edges)."
+    "drupal/relationship_nodes": "Required by the network_views_relationship_nodes submodule (relation nodes as edges)."
   }
 }

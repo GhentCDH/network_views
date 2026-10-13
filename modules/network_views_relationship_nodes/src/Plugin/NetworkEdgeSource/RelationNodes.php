@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\views_network_relationship_nodes\Plugin\NetworkEdgeSource;
+namespace Drupal\network_views_relationship_nodes\Plugin\NetworkEdgeSource;
 
 use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -12,9 +12,9 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\node\NodeInterface;
 use Drupal\relationship_nodes\RelationBundle\BundleInfoService;
 use Drupal\relationship_nodes\RelationField\FieldNameResolver;
-use Drupal\views_network\Attribute\NetworkEdgeSource;
-use Drupal\views_network\EdgeSource\Edge;
-use Drupal\views_network\EdgeSource\EdgeSourcePluginBase;
+use Drupal\network_views\Attribute\NetworkEdgeSource;
+use Drupal\network_views\EdgeSource\Edge;
+use Drupal\network_views\EdgeSource\EdgeSourcePluginBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
