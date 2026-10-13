@@ -78,6 +78,30 @@
         },
       },
       {
+        // The root of an ego network.
+        selector: 'node[?root]',
+        style: {
+          shape: 'star',
+          width: (node) => 1.6 * size(node),
+          height: (node) => 1.6 * size(node),
+          'font-weight': 'bold',
+        },
+      },
+      {
+        // Not available in the current language.
+        selector: 'node[?faded]',
+        style: {
+          opacity: 0.45,
+          'border-width': 1.5,
+          'border-style': 'dashed',
+          'border-color': textColor,
+        },
+      },
+      {
+        selector: 'edge[?faded]',
+        style: { opacity: 0.45, 'line-style': 'dashed' },
+      },
+      {
         selector: 'edge.highlighted',
         style: { label: 'data(label)', width: 2.5 },
       },
@@ -86,7 +110,7 @@
         style: { 'border-width': 2, 'border-color': textColor },
       },
       {
-        selector: '.faded',
+        selector: '.dimmed',
         style: { opacity: 0.15 },
       },
     ];
@@ -144,7 +168,7 @@
     cy.on('mouseover', 'node', (event) => {
       const node = event.target;
       const neighbourhood = node.closedNeighborhood();
-      cy.elements().not(neighbourhood).addClass('faded');
+      cy.elements().not(neighbourhood).addClass('dimmed');
       neighbourhood.addClass('highlighted');
       showTooltip(tooltip, node);
       if (settings.link && node.data('url')) {
@@ -152,7 +176,7 @@
       }
     });
     cy.on('mouseout', 'node', () => {
-      cy.elements().removeClass('faded highlighted');
+      cy.elements().removeClass('dimmed highlighted');
       tooltip.hidden = true;
       canvas.style.cursor = '';
     });

@@ -7,6 +7,7 @@ namespace Drupal\network_views\EdgeSource;
 use Drupal\Component\Plugin\ConfigurableInterface;
 use Drupal\Component\Plugin\PluginInspectionInterface;
 use Drupal\Core\Cache\CacheableDependencyInterface;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 
 /**
@@ -65,5 +66,22 @@ interface EdgeSourceInterface extends PluginInspectionInterface, ConfigurableInt
    *   The edges.
    */
   public function getEdges(array $entities): array;
+
+  /**
+   * Returns the edges that start or end at one entity.
+   *
+   * Used to find the neighbours of an entity, e.g. for an ego network. Unlike
+   * getEdges(), this also returns the edges from entities that are not known
+   * yet, such as references to the entity from other entities. Only edges to
+   * entities the current user may view need to be returned; the caller
+   * checks access to the neighbours as well.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity.
+   *
+   * @return \Drupal\network_views\EdgeSource\Edge[]
+   *   The edges.
+   */
+  public function getEdgesOf(EntityInterface $entity): array;
 
 }

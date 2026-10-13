@@ -6,7 +6,6 @@ namespace Drupal\Tests\network_views\Unit;
 
 use Drupal\Tests\UnitTestCase;
 use Drupal\network_views\Palette;
-use Drupal\network_views\Plugin\views\style\Network;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
 
@@ -50,7 +49,7 @@ class PaletteTest extends UnitTestCase {
    * Color lines are parsed, and invalid ones reported.
    */
   public function testParseColors(): void {
-    $colors = Network::parseColors("Person|#4e79a7\r\n\nA|B|red\nbroken\nX|url(evil)\nY|rgb(1, 2, 3)", $invalid);
+    $colors = Palette::parse("Person|#4e79a7\r\n\nA|B|red\nbroken\nX|url(evil)\nY|rgb(1, 2, 3)", $invalid);
     $this->assertSame(['Person' => '#4e79a7', 'A|B' => 'red', 'Y' => 'rgb(1, 2, 3)'], $colors);
     $this->assertSame(['broken', 'X|url(evil)'], $invalid);
   }

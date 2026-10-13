@@ -28,6 +28,14 @@ final class Edge {
    *   the same type get the same color and legend entry.
    * @param string $typeLabel
    *   The human-readable label of the type, also used as edge label.
+   * @param string|null $reverseLabel
+   *   Optional label of the edge read from target to source, e.g. "Student
+   *   of" for "Teacher of". Used when the graph is oriented from a node that
+   *   is the target of the edge, as in an ego network.
+   * @param bool $languageUnavailable
+   *   Whether the edge is not available in the current language, e.g.
+   *   because something it depends on has no translation in that language.
+   *   Depending on the settings, such edges are hidden or shown faded.
    */
   public function __construct(
     public readonly string $id,
@@ -37,6 +45,8 @@ final class Edge {
     public readonly int|string $targetId,
     public readonly string $type,
     public readonly string $typeLabel,
+    public readonly ?string $reverseLabel = NULL,
+    public readonly bool $languageUnavailable = FALSE,
   ) {}
 
 }

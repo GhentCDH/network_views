@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Drupal\network_views\Plugin\NetworkEdgeSource;
 
 use Drupal\Core\Entity\EntityFieldManagerInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
@@ -32,6 +34,7 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
     $plugin_id,
     $plugin_definition,
     protected EntityFieldManagerInterface $entityFieldManager,
+    protected EntityTypeManagerInterface $entityTypeManager,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -45,6 +48,7 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
       $plugin_id,
       $plugin_definition,
       $container->get('entity_field.manager'),
+      $container->get('entity_type.manager'),
     );
   }
 
@@ -110,6 +114,36 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
             typeLabel: $label,
           );
         }
+      }
+    }
+    return $edges;
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * The references of the entity, and the references to it from other
+   * entities that the current user may view.
+   */
+  public function getEdgesOf(EntityInterface $entity): array {
+    $entity_type_id = $entity->getEntityTypeId();
+    $storage = $this->entityTypeManager->getStorage($entity_type_id);
+    $referencing_ids = [];
+    $storages = $this->entityFieldManager->getFieldStorageDefinitions($entity_type_id);
+    foreach ($this->configuration['fields'] as $field_name) {
+      if (!isset($storages[$field_name])) {
+        continue;
+      }
+      $ids = $storage->getQuery()
+        ->accessCheck(TRUE)
+        ->condition($field_name, $entity->id())
+        ->execute();
+      $referencing_ids += array_combine($ids, $ids);
+    }
+    $edges = $this->getEdges([$entity->id() => $entity]);
+    foreach ($this->getEdges($storage->loadMultiple($referencing_ids)) as $edge) {
+      if ((string) $edge->targetId === (string) $entity->id() && $edge->targetEntityType === $entity_type_id) {
+        $edges[] = $edge;
       }
     }
     return $edges;

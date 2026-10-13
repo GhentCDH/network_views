@@ -2,3 +2,8 @@ services:
   plugin.manager.network_views.edge_source:
     class: Drupal\network_views\EdgeSource\EdgeSourceManager
     parent: default_plugin_manager
+  network_views.graph_builder:
+    class: Drupal\network_views\Graph\GraphBuilder
+    arguments:
+      - '@language_manager'
+      - '@entity_type.bundle.info'

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\network_views\EdgeSource;
 
 use Drupal\Core\Cache\UnchangingCacheableDependencyTrait;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Plugin\PluginBase;
 
 /**
@@ -53,6 +54,17 @@ abstract class EdgeSourcePluginBase extends PluginBase implements EdgeSourceInte
    */
   public function submitConfigurationForm(array $values): array {
     return array_intersect_key($values, $this->defaultConfiguration());
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * By default, the edges that getEdges() returns for the entity alone. Edge
+   * sources that can find edges from other entities to this one override
+   * this.
+   */
+  public function getEdgesOf(EntityInterface $entity): array {
+    return $this->getEdges([$entity->id() => $entity]);
   }
 
 }

@@ -65,4 +65,43 @@ final class Palette {
     return $result;
   }
 
+  /**
+   * Parses lines of "value|color".
+   *
+   * @param string $text
+   *   The text to parse.
+   * @param string[]|null $invalid
+   *   Returns the invalid lines.
+   *
+   * @return string[]
+   *   Colors keyed by value.
+   *
+   * @param-out string[] $invalid
+   */
+  public static function parse(string $text, ?array &$invalid = NULL): array {
+    $colors = [];
+    $invalid = [];
+    foreach (preg_split('/\R/', $text) as $line) {
+      if (trim($line) === '') {
+        continue;
+      }
+      $parts = explode('|', $line);
+      $color = trim((string) array_pop($parts));
+      $value = trim(implode('|', $parts));
+      if ($value === '' || !self::isColor($color)) {
+        $invalid[] = trim($line);
+        continue;
+      }
+      $colors[$value] = $color;
+    }
+    return $colors;
+  }
+
+  /**
+   * Whether a string is a CSS color that is safe to output.
+   */
+  public static function isColor(string $color): bool {
+    return (bool) preg_match('/^(#[0-9a-f]{3,8}|[a-z]{3,20}|(rgb|hsl)a?\([0-9.,%\s]+\))$/i', $color);
+  }
+
 }

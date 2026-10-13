@@ -37,6 +37,9 @@ views.style.network:
     hide_isolated:
       type: boolean
       label: 'Hide nodes without connections'
+    language:
+      type: string
+      label: 'Not available in the current language'
     size:
       type: string
       label: 'Node size'

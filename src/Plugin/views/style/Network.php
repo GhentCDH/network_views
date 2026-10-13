@@ -8,16 +8,14 @@ use Drupal\Component\Utility\Html;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityRepositoryInterface;
-use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Render\Element;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
-use Drupal\Core\Template\Attribute;
 use Drupal\views\Attribute\ViewsStyle;
 use Drupal\views\Plugin\views\field\EntityField;
 use Drupal\views\Plugin\views\style\StylePluginBase;
-use Drupal\network_views\EdgeSource\EdgeSourceInterface;
 use Drupal\network_views\EdgeSource\EdgeSourceManager;
+use Drupal\network_views\Graph\GraphBuilder;
+use Drupal\network_views\Graph\GraphNode;
 use Drupal\network_views\Palette;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -65,9 +63,9 @@ class Network extends StylePluginBase {
   protected EntityRepositoryInterface $entityRepository;
 
   /**
-   * The bundle info service.
+   * The graph builder.
    */
-  protected EntityTypeBundleInfoInterface $bundleInfo;
+  protected GraphBuilder $graphBuilder;
 
   /**
    * {@inheritdoc}
@@ -76,7 +74,7 @@ class Network extends StylePluginBase {
     $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
     $instance->edgeSourceManager = $container->get('plugin.manager.network_views.edge_source');
     $instance->entityRepository = $container->get('entity.repository');
-    $instance->bundleInfo = $container->get('entity_type.bundle.info');
+    $instance->graphBuilder = $container->get('network_views.graph_builder');
     return $instance;
   }
 
@@ -95,6 +93,7 @@ class Network extends StylePluginBase {
     $options['directed'] = ['default' => TRUE];
     $options['edge_labels'] = ['default' => FALSE];
     $options['hide_isolated'] = ['default' => FALSE];
+    $options['language'] = ['default' => 'show'];
     $options['size'] = ['default' => 'degree'];
     $options['link'] = ['default' => TRUE];
     $options['layout'] = ['default' => 'cose'];
@@ -180,6 +179,18 @@ class Network extends StylePluginBase {
       '#default_value' => $this->options['hide_isolated'],
       '#fieldset' => 'nodes',
     ];
+    $form['language'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Not available in the current language'),
+      '#description' => $this->t('Nodes without a translation in the current language that the visitor may view, and edges that their edge source marks as unavailable in it.'),
+      '#options' => [
+        'show' => $this->t('Show normally'),
+        'fade' => $this->t('Show faded'),
+        'hide' => $this->t('Hide'),
+      ],
+      '#default_value' => $this->options['language'],
+      '#fieldset' => 'nodes',
+    ];
     $form['link'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Open the entity when a node is clicked'),
@@ -193,35 +204,12 @@ class Network extends StylePluginBase {
       '#description' => $this->t('Only edges between two result rows are shown.'),
       '#open' => TRUE,
     ];
-    $form['edge_sources'] = [
-      '#type' => 'container',
-      '#tree' => TRUE,
-      '#fieldset' => 'edges',
-    ];
-    foreach ($this->getEdgeSources(FALSE) as $plugin_id => $edge_source) {
-      if (!$entity_type_id || !$edge_source->isApplicable($entity_type_id)) {
-        continue;
-      }
-      $definition = $edge_source->getPluginDefinition();
-      $enabled_selector = ':input[name="style_options[edge_sources][' . $plugin_id . '][enabled]"]';
-      $form['edge_sources'][$plugin_id] = [
-        '#type' => 'fieldset',
-        '#title' => $definition['label'],
-      ];
-      $form['edge_sources'][$plugin_id]['enabled'] = [
-        '#type' => 'checkbox',
-        '#title' => $this->t('Enabled'),
-        '#description' => $definition['description'] ?? NULL,
-        '#default_value' => !empty($this->options['edge_sources'][$plugin_id]['enabled']),
-      ];
-      $form['edge_sources'][$plugin_id]['settings'] = $edge_source->buildConfigurationForm([
-        '#type' => 'container',
-        '#states' => ['visible' => [$enabled_selector => ['checked' => TRUE]]],
-      ], $form_state, $entity_type_id);
-    }
-    if (count(Element::children($form['edge_sources'])) === 0) {
-      $form['edge_sources']['#markup'] = $this->t('No edge source is available for this view.');
-    }
+    $form['edge_sources'] = $this->edgeSourceManager->buildConfigurationForm(
+      $this->options['edge_sources'],
+      (string) $entity_type_id,
+      $form_state,
+      'style_options[edge_sources]',
+    ) + ['#fieldset' => 'edges'];
     $form['directed'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Directed edges'),
@@ -289,7 +277,7 @@ class Network extends StylePluginBase {
       $form_state->setError($form['height'], $this->t('The height must be a number with a unit (px, em, rem, vh or %).'));
     }
     foreach (['colors', 'edge_colors'] as $key) {
-      static::parseColors((string) $form_state->getValue(['style_options', $key]), $invalid);
+      Palette::parse((string) $form_state->getValue(['style_options', $key]), $invalid);
       if ($invalid) {
         $form_state->setError($form[$key], $this->t('Invalid lines: %lines. Use <code>value|color</code> with a color such as <code>#4e79a7</code>.', ['%lines' => implode(', ', $invalid)]));
       }
@@ -303,214 +291,43 @@ class Network extends StylePluginBase {
     parent::submitOptionsForm($form, $form_state);
     $options = &$form_state->getValue('style_options');
     $options['tooltip_fields'] = array_values(array_filter($options['tooltip_fields'] ?? []));
-    $edge_sources = [];
-    foreach ($options['edge_sources'] ?? [] as $plugin_id => $values) {
-      if (!is_array($values) || !$this->edgeSourceManager->hasDefinition($plugin_id)) {
-        continue;
-      }
-      $edge_source = $this->edgeSourceManager->createInstance($plugin_id);
-      $edge_sources[$plugin_id] = [
-        'enabled' => !empty($values['enabled']),
-        'settings' => $edge_source->submitConfigurationForm($values['settings'] ?? []),
-      ];
-    }
-    $options['edge_sources'] = $edge_sources;
+    $options['edge_sources'] = $this->edgeSourceManager->submitConfigurationForm($options['edge_sources'] ?? []);
   }
 
   /**
    * {@inheritdoc}
    */
   public function render() {
-    $entity_type_id = $this->baseEntityTypeId();
-    if (!$entity_type_id) {
+    if (!$this->baseEntityTypeId()) {
       return [];
     }
-    $cacheability = new CacheableMetadata();
 
     // One graph node per entity; relationships can repeat an entity.
-    $entities = [];
-    $rows = [];
+    $nodes = [];
     foreach ($this->view->result as $index => $row) {
       // ResultRow::$_entity is documented as not nullable, but it is NULL
       // when the entity could not be loaded.
       /** @var \Drupal\Core\Entity\EntityInterface|null $entity */
       $entity = $row->_entity;
-      if ($entity && !isset($entities[$entity->id()])) {
-        $entities[$entity->id()] = $this->entityRepository->getTranslationFromContext($entity);
-        $rows[$entity->id()] = $index;
-      }
-    }
-
-    $edges = $this->buildEdges($entity_type_id, $entities, $cacheability);
-    if ($this->options['hide_isolated']) {
-      $connected = [];
-      foreach ($edges as $edge) {
-        $connected[$edge['source']] = TRUE;
-        $connected[$edge['target']] = TRUE;
-      }
-      $entities = array_filter($entities, fn(EntityInterface $entity) => isset($connected[$this->key($entity_type_id, $entity->id())]));
-    }
-
-    $nodes = [];
-    $categories = [];
-    $data_colors = [];
-    foreach ($entities as $id => $entity) {
-      $index = $rows[$id];
-      $category = $this->category($index, $entity);
-      $node = [
-        'id' => $this->key($entity_type_id, $id),
-        'label' => $this->options['label_field'] ? $this->plainText($index, $this->options['label_field']) : (string) $entity->label(),
-        'category' => $category,
-        'tooltip' => $this->tooltip($index),
-      ];
-      if ($this->options['link'] && $entity->hasLinkTemplate('canonical')) {
-        $url = $entity->toUrl()->toString(TRUE);
-        $cacheability->addCacheableDependency($url);
-        $node['url'] = $url->getGeneratedUrl();
-      }
-      if ($this->options['color_value_field']) {
-        $color = $this->plainText($index, $this->options['color_value_field']);
-        if (static::isColor($color)) {
-          $node['color'] = $color;
-          $data_colors[$category] ??= $color;
-        }
-      }
-      $categories[$category] = ($categories[$category] ?? 0) + 1;
-      $nodes[] = $node;
-    }
-
-    // Colors per category: from the data, the configured colors or the
-    // palette, in that order.
-    $category_colors = $data_colors + Palette::assign(array_keys($categories), static::parseColors($this->options['colors']));
-    foreach ($nodes as &$node) {
-      $node['color'] ??= $category_colors[$node['category']];
-    }
-    unset($node);
-
-    $edge_types = [];
-    foreach ($edges as $edge) {
-      $edge_types[$edge['type']] = ($edge_types[$edge['type']] ?? 0) + 1;
-    }
-    $edge_overrides = static::parseColors($this->options['edge_colors']);
-    $edge_colors = count($edge_types) === 1 && !$edge_overrides
-      ? [array_key_first($edge_types) => Palette::NEUTRAL]
-      : Palette::assign(array_keys($edge_types), $edge_overrides);
-    foreach ($edges as &$edge) {
-      $edge['color'] = $edge_colors[$edge['type']];
-    }
-    unset($edge);
-
-    $graph = [
-      'nodes' => $nodes,
-      'edges' => $edges,
-      'settings' => [
-        'layout' => $this->options['layout'],
-        'directed' => (bool) $this->options['directed'],
-        'edgeLabels' => (bool) $this->options['edge_labels'],
-        'size' => $this->options['size'],
-        'link' => (bool) $this->options['link'],
-      ],
-    ];
-
-    $legend = [];
-    if ($this->options['legend']) {
-      ksort($categories, SORT_NATURAL | SORT_FLAG_CASE);
-      ksort($edge_types, SORT_NATURAL | SORT_FLAG_CASE);
-      if ($this->options['color_field'] && count($categories) > 0) {
-        foreach ($categories as $category => $count) {
-          $legend['nodes'][] = ['label' => $category, 'color' => $category_colors[$category], 'count' => $count];
-        }
-      }
-      foreach ($edge_types as $type => $count) {
-        $legend['edges'][] = ['label' => $type, 'color' => $edge_colors[$type], 'count' => $count];
-      }
-    }
-
-    $build = [
-      '#theme' => 'network_views',
-      '#attributes' => ['class' => ['network-views']],
-      '#canvas_attributes' => new Attribute([
-        'class' => ['network-views__canvas'],
-        'style' => 'height: ' . $this->options['height'],
-        'data-network-views' => json_encode($graph, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        'role' => 'img',
-        'aria-label' => $this->t('Network of @nodes items and @edges connections', [
-          '@nodes' => count($nodes),
-          '@edges' => count($edges),
-        ]),
-      ]),
-      '#legend' => $legend,
-      '#attached' => ['library' => ['network_views/network']],
-    ];
-    $cacheability->applyTo($build);
-    return $build;
-  }
-
-  /**
-   * Builds the edges between the result entities.
-   *
-   * @param string $entity_type_id
-   *   The base entity type of the view.
-   * @param \Drupal\Core\Entity\EntityInterface[] $entities
-   *   The result entities, keyed by ID.
-   * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
-   *   Collects the cacheability of the edge sources.
-   *
-   * @return array
-   *   Edge data for the graph, keyed by edge ID.
-   */
-  protected function buildEdges(string $entity_type_id, array $entities, CacheableMetadata $cacheability): array {
-    $edges = [];
-    foreach ($this->getEdgeSources() as $edge_source) {
-      if (!$edge_source->isApplicable($entity_type_id)) {
+      if (!$entity || isset($nodes[$entity->id()])) {
         continue;
       }
-      $cacheability->addCacheableDependency($edge_source);
-      foreach ($edge_source->getEdges($entities) as $edge) {
-        if ($edge->sourceEntityType !== $entity_type_id
-          || $edge->targetEntityType !== $entity_type_id
-          || !isset($entities[$edge->sourceId], $entities[$edge->targetId])
-          || (string) $edge->sourceId === (string) $edge->targetId) {
-          continue;
-        }
-        $source = $this->key($entity_type_id, $edge->sourceId);
-        $target = $this->key($entity_type_id, $edge->targetId);
-        $id = $edge->id;
-        if (!$this->options['directed']) {
-          $pair = [$source, $target];
-          sort($pair);
-          $id = $edge->type . '|' . implode('|', $pair);
-        }
-        $edges[$id] ??= [
-          'id' => $id,
-          'source' => $source,
-          'target' => $target,
-          'type' => $edge->typeLabel,
-          'label' => $edge->typeLabel,
-        ];
-      }
+      $entity = $this->entityRepository->getTranslationFromContext($entity);
+      $color = $this->options['color_value_field'] ? $this->plainText($index, $this->options['color_value_field']) : NULL;
+      $nodes[$entity->id()] = new GraphNode(
+        entity: $entity,
+        label: $this->options['label_field'] ? $this->plainText($index, $this->options['label_field']) : (string) $entity->label(),
+        category: $this->category($index, $entity),
+        color: $color !== '' ? $color : NULL,
+        tooltip: $this->tooltip($index),
+      );
     }
-    return array_values($edges);
-  }
 
-  /**
-   * Returns the enabled edge source plugins, or all of them.
-   *
-   * @return \Drupal\network_views\EdgeSource\EdgeSourceInterface[]
-   *   The edge sources, keyed by plugin ID.
-   */
-  protected function getEdgeSources(bool $enabled_only = TRUE): array {
-    $edge_sources = [];
-    foreach (array_keys($this->edgeSourceManager->getDefinitions()) as $plugin_id) {
-      $options = $this->options['edge_sources'][$plugin_id] ?? [];
-      if ($enabled_only && empty($options['enabled'])) {
-        continue;
-      }
-      $edge_source = $this->edgeSourceManager->createInstance($plugin_id, $options['settings'] ?? []);
-      assert($edge_source instanceof EdgeSourceInterface);
-      $edge_sources[$plugin_id] = $edge_source;
-    }
-    return $edge_sources;
+    $cacheability = new CacheableMetadata();
+    $entities = array_map(fn(GraphNode $node) => $node->entity, $nodes);
+    $edges = $this->edgeSourceManager->getEdges($this->options['edge_sources'], $entities, $cacheability);
+    $graph = $this->graphBuilder->build($nodes, $edges, $this->options, $cacheability);
+    return $this->graphBuilder->toRenderArray($graph, $this->options, $cacheability);
   }
 
   /**
@@ -519,7 +336,7 @@ class Network extends StylePluginBase {
   protected function category(int $index, EntityInterface $entity): string {
     return match ($this->options['color_field']) {
       '' => '',
-      '_bundle' => (string) ($this->bundleInfo->getBundleInfo($entity->getEntityTypeId())[$entity->bundle()]['label'] ?? $entity->bundle()),
+      '_bundle' => $this->graphBuilder->bundleLabel($entity),
       default => $this->plainText($index, $this->options['color_field'], TRUE),
     };
   }
@@ -576,50 +393,6 @@ class Network extends StylePluginBase {
   protected function baseEntityTypeId(): ?string {
     $entity_type = $this->view->getBaseEntityType();
     return $entity_type ? $entity_type->id() : NULL;
-  }
-
-  /**
-   * Returns the graph ID of an entity.
-   */
-  protected function key(string $entity_type_id, int|string $id): string {
-    return $entity_type_id . ':' . $id;
-  }
-
-  /**
-   * Parses lines of "value|color".
-   *
-   * @param string $text
-   *   The text to parse.
-   * @param string[]|null $invalid
-   *   Returns the invalid lines.
-   *
-   * @return string[]
-   *   Colors keyed by value.
-   */
-  public static function parseColors(string $text, ?array &$invalid = NULL): array {
-    $colors = [];
-    $invalid = [];
-    foreach (preg_split('/\R/', $text) as $line) {
-      if (trim($line) === '') {
-        continue;
-      }
-      $parts = explode('|', $line);
-      $color = trim((string) array_pop($parts));
-      $value = trim(implode('|', $parts));
-      if ($value === '' || !static::isColor($color)) {
-        $invalid[] = trim($line);
-        continue;
-      }
-      $colors[$value] = $color;
-    }
-    return $colors;
-  }
-
-  /**
-   * Whether a string is a CSS color that is safe to output.
-   */
-  public static function isColor(string $color): bool {
-    return (bool) preg_match('/^(#[0-9a-f]{3,8}|[a-z]{3,20}|(rgb|hsl)a?\([0-9.,%\s]+\))$/i', $color);
   }
 
 }
