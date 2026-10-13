@@ -11,7 +11,7 @@
   /**
    * Returns the Cytoscape layout options for a layout name.
    */
-  function layoutOptions(name, directed) {
+  function layoutOptions(name, directed, hasRoot) {
     const shared = { name, animate: false, padding: 30, fit: true };
     switch (name) {
       case 'concentric':
@@ -23,7 +23,8 @@
           minNodeSpacing: 20,
         };
       case 'breadthfirst':
-        return { ...shared, directed, spacingFactor: 1.2, roots: '[?root]' };
+        // From the root of an ego network; otherwise Cytoscape chooses.
+        return { ...shared, directed, spacingFactor: 1.2, ...(hasRoot ? { roots: '[?root]' } : {}) };
       case 'circle':
       case 'grid':
         return shared;
@@ -159,7 +160,7 @@
         edges: graph.edges.map((data) => ({ data })),
       },
       style: stylesheet(settings, textColor),
-      layout: layoutOptions(settings.layout, settings.directed),
+      layout: layoutOptions(settings.layout, settings.directed, graph.nodes.some((node) => node.root)),
       minZoom: 0.1,
       maxZoom: 4,
       wheelSensitivity: 0.3,
