@@ -90,6 +90,7 @@ class Network extends StylePluginBase {
     $options['colors'] = ['default' => ''];
     $options['edge_colors'] = ['default' => ''];
     $options['edge_sources'] = ['default' => []];
+    $options['shared_links'] = ['default' => []];
     $options['directed'] = ['default' => TRUE];
     $options['edge_labels'] = ['default' => FALSE];
     $options['hide_isolated'] = ['default' => FALSE];
@@ -201,7 +202,7 @@ class Network extends StylePluginBase {
     $form['edges'] = [
       '#type' => 'details',
       '#title' => $this->t('Edges'),
-      '#description' => $this->t('Only edges between two result rows are shown.'),
+      '#description' => $this->t('Only edges between two result rows are shown, and shared links between result rows.'),
       '#open' => TRUE,
     ];
     $form['edge_sources'] = $this->edgeSourceManager->buildConfigurationForm(
@@ -210,10 +211,18 @@ class Network extends StylePluginBase {
       $form_state,
       'style_options[edge_sources]',
     ) + ['#fieldset' => 'edges'];
+    $shared_links = $this->edgeSourceManager->buildSharedLinksForm(
+      $this->options['shared_links'],
+      (string) $entity_type_id,
+      'style_options[edge_sources]',
+    );
+    if ($shared_links) {
+      $form['shared_links'] = $shared_links + ['#fieldset' => 'edges'];
+    }
     $form['directed'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Directed edges'),
-      '#description' => $this->t('Show arrows. Without direction, two edges of the same type between the same nodes are shown once.'),
+      '#description' => $this->t('Show arrows. Without direction, two edges of the same type between the same nodes are shown once. Shared links have no direction.'),
       '#default_value' => $this->options['directed'],
       '#fieldset' => 'edges',
     ];
@@ -292,6 +301,7 @@ class Network extends StylePluginBase {
     $options = &$form_state->getValue('style_options');
     $options['tooltip_fields'] = array_values(array_filter($options['tooltip_fields'] ?? []));
     $options['edge_sources'] = $this->edgeSourceManager->submitConfigurationForm($options['edge_sources'] ?? []);
+    $options['shared_links'] = $this->edgeSourceManager->submitSharedLinksForm($options['shared_links'] ?? []);
   }
 
   /**
@@ -325,7 +335,10 @@ class Network extends StylePluginBase {
 
     $cacheability = new CacheableMetadata();
     $entities = array_map(fn(GraphNode $node) => $node->entity, $nodes);
-    $edges = $this->edgeSourceManager->getEdges($this->options['edge_sources'], $entities, $cacheability);
+    // Shared links also need the edges to shared items outside the result.
+    $edges = $this->options['shared_links']
+      ? $this->edgeSourceManager->getAllEdgesOf($this->options['edge_sources'], $entities, $cacheability)
+      : $this->edgeSourceManager->getEdges($this->options['edge_sources'], $entities, $cacheability);
     $graph = $this->graphBuilder->build($nodes, $edges, $this->options, $cacheability);
     return $this->graphBuilder->toRenderArray($graph, $this->options, $cacheability);
   }

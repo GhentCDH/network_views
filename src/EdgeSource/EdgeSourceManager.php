@@ -122,6 +122,34 @@ class EdgeSourceManager extends DefaultPluginManager {
   }
 
   /**
+   * Returns all edges of the enabled edge sources that touch the entities.
+   *
+   * @param array $config
+   *   Edge source configuration, keyed by plugin ID.
+   * @param \Drupal\Core\Entity\EntityInterface[] $entities
+   *   The entities, keyed by ID, all of one entity type.
+   * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
+   *   Collects the cacheability of the edge sources.
+   *
+   * @return \Drupal\network_views\EdgeSource\Edge[]
+   *   The edges, also to and from other entities.
+   *
+   * @see \Drupal\network_views\EdgeSource\EdgeSourceInterface::getAllEdgesOf()
+   */
+  public function getAllEdgesOf(array $config, array $entities, CacheableMetadata $cacheability): array {
+    $first = reset($entities);
+    if (!$first) {
+      return [];
+    }
+    $edges = [];
+    foreach ($this->createEnabled($config, $first->getEntityTypeId()) as $edge_source) {
+      $cacheability->addCacheableDependency($edge_source);
+      array_push($edges, ...$edge_source->getAllEdgesOf($entities));
+    }
+    return $edges;
+  }
+
+  /**
    * Builds the settings form for an edge source configuration.
    *
    * @param array $config
@@ -193,6 +221,123 @@ class EdgeSourceManager extends DefaultPluginManager {
       ];
     }
     return $config;
+  }
+
+  /**
+   * Builds the form to show edge types as shared links.
+   *
+   * Shared links connect the items that share a neighbour, e.g. initiatives
+   * organised by the same organisation, instead of linking each item to that
+   * neighbour (a one-mode projection of the network).
+   *
+   * @param array $shared_links
+   *   The current shared links configuration; see GraphBuilder::build().
+   * @param string $entity_type_id
+   *   The entity type of the graph nodes.
+   * @param string $name
+   *   The HTML name of the edge source configuration element (see
+   *   buildConfigurationForm()), to show the edge types of an edge source
+   *   only when it is enabled.
+   *
+   * @return array
+   *   The form element. Clean the submitted values with
+   *   submitSharedLinksForm().
+   */
+  public function buildSharedLinksForm(array $shared_links, string $entity_type_id, string $name): array {
+    $current = array_column($shared_links, NULL, 'edge_type');
+    $element = [
+      '#type' => 'details',
+      '#title' => $this->t('Shared links'),
+      '#description' => $this->t('Instead of an edge to the item they share, connect the items that share it with each other: e.g. for "Organised by" (initiative to organisation), link the initiatives organised by the same organisation. The items they share do not have to be in the graph. For relation nodes, an edge goes from the first related item to the second. This is also known as a one-mode projection.'),
+      '#open' => (bool) $current,
+      '#tree' => TRUE,
+    ];
+    foreach (array_keys($this->getDefinitions()) as $plugin_id) {
+      $edge_source = $this->createInstance($plugin_id);
+      assert($edge_source instanceof EdgeSourceInterface);
+      if (!$edge_source->isApplicable($entity_type_id) || !($types = $edge_source->getEdgeTypes($entity_type_id))) {
+        continue;
+      }
+      $element[$plugin_id] = [
+        '#type' => 'table',
+        '#caption' => $edge_source->getPluginDefinition()['label'],
+        '#header' => [
+          $this->t('Edge type'),
+          $this->t('Show as'),
+          $this->t('Label of the shared links'),
+          $this->t('Leave out shared items with more than'),
+        ],
+        '#states' => [
+          'visible' => [':input[name="' . $name . '[' . $plugin_id . '][enabled]"]' => ['checked' => TRUE]],
+        ],
+      ];
+      foreach ($types as $type => $label) {
+        $config = $current[$type] ?? [];
+        $element[$plugin_id][$type] = [
+          'label' => ['#plain_text' => $label],
+          'mode' => [
+            '#type' => 'select',
+            '#title' => $this->t('Show @type as', ['@type' => $label]),
+            '#title_display' => 'invisible',
+            '#options' => [
+              '' => $this->t('Direct edges'),
+              'target' => $this->t('Links between items with the same target'),
+              'source' => $this->t('Links between items with the same source'),
+            ],
+            '#default_value' => $config['mode'] ?? '',
+          ],
+          'shared_label' => [
+            '#type' => 'textfield',
+            '#title' => $this->t('Label of the shared links of @type', ['@type' => $label]),
+            '#title_display' => 'invisible',
+            '#placeholder' => $this->t('Shared: @type', ['@type' => $label]),
+            '#default_value' => $config['label'] ?? '',
+            '#size' => 20,
+          ],
+          'max' => [
+            '#type' => 'number',
+            '#title' => $this->t('Leave out shared items of @type with more than this number of items', ['@type' => $label]),
+            '#title_display' => 'invisible',
+            '#description' => $this->t('items; empty for no limit'),
+            '#min' => 2,
+            '#default_value' => $config['max'] ?? NULL,
+            '#size' => 4,
+          ],
+        ];
+      }
+    }
+    if (!Element::children($element)) {
+      return [];
+    }
+    return $element;
+  }
+
+  /**
+   * Returns the shared links configuration from submitted form values.
+   *
+   * @param array $values
+   *   The submitted values of the element of buildSharedLinksForm().
+   *
+   * @return array
+   *   A list of shared links settings, each with the keys "edge_type",
+   *   "mode", "label" and "max"; see GraphBuilder::build().
+   */
+  public function submitSharedLinksForm(array $values): array {
+    $shared_links = [];
+    foreach ($values as $types) {
+      foreach (is_array($types) ? $types : [] as $type => $row) {
+        if (!is_array($row) || !in_array($row['mode'] ?? '', ['target', 'source'], TRUE)) {
+          continue;
+        }
+        $shared_links[] = [
+          'edge_type' => (string) $type,
+          'mode' => $row['mode'],
+          'label' => trim((string) ($row['shared_label'] ?? '')),
+          'max' => (int) ($row['max'] ?? 0),
+        ];
+      }
+    }
+    return $shared_links;
   }
 
 }

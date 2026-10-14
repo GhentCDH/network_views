@@ -84,4 +84,34 @@ interface EdgeSourceInterface extends PluginInspectionInterface, ConfigurableInt
    */
   public function getEdgesOf(EntityInterface $entity): array;
 
+  /**
+   * Returns all edges that start or end at the given entities.
+   *
+   * Like getEdgesOf() for several entities at once: unlike getEdges(), this
+   * also returns the edges to and from entities that are not given, such as
+   * the organisation that two given initiatives share. Used for shared links.
+   * Only edges to entities the current user may view need to be returned.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface[] $entities
+   *   The entities, keyed by entity ID, all of one entity type.
+   *
+   * @return \Drupal\network_views\EdgeSource\Edge[]
+   *   The edges.
+   */
+  public function getAllEdgesOf(array $entities): array;
+
+  /**
+   * Returns the types of edges the edge source can return.
+   *
+   * Used to configure each type of edge, e.g. as shared links.
+   *
+   * @param string $entity_type_id
+   *   The base entity type of the graph.
+   *
+   * @return string[]
+   *   The labels of the edge types, keyed by the type keys of the edges
+   *   (Edge::$type).
+   */
+  public function getEdgeTypes(string $entity_type_id): array;
+
 }

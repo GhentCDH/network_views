@@ -218,4 +218,145 @@ class GraphBuilderTest extends KernelTestBase {
     $this->assertCount(3, $graph['edges']);
   }
 
+  /**
+   * Edges of shared links types link the nodes that share an item.
+   */
+  public function testSharedLinks(): void {
+    NodeType::create(['type' => 'organisation', 'name' => 'Organisation'])->save();
+    foreach (['Org A' => 1, 'Org B' => 1, 'Org C' => 0] as $title => $status) {
+      $this->nodes[$title] = Node::create(['type' => 'organisation', 'title' => $title, 'status' => $status]);
+      $this->nodes[$title]->save();
+    }
+    // Ann, Bob and Cas are organised by Org A; Ann and Bob by Org B; Cas and
+    // Dirk by Org C, which the user may not view. Ann knows Bob.
+    $organised_by = fn(string $source, string $target, bool $language_unavailable = FALSE) => new Edge(
+      id: "org:$source-$target",
+      sourceEntityType: 'node',
+      sourceId: $this->nodes[$source]->id(),
+      targetEntityType: 'node',
+      targetId: $this->nodes[$target]->id(),
+      type: 'organised_by',
+      typeLabel: 'Organised by',
+      languageUnavailable: $language_unavailable,
+    );
+    $edges = [
+      $organised_by('Ann', 'Org A'),
+      $organised_by('Bob', 'Org A'),
+      $organised_by('Cas', 'Org A'),
+      $organised_by('Ann', 'Org B'),
+      $organised_by('Bob', 'Org B'),
+      $organised_by('Cas', 'Org C'),
+      $organised_by('Dirk', 'Org C'),
+      $this->edge('Ann', 'Bob', 'Knows'),
+    ];
+    $builder = $this->container->get('network_views.graph_builder');
+    $shared = ['edge_type' => 'organised_by', 'mode' => 'target', 'label' => '', 'max' => 0];
+    $persons = fn() => $this->graphNodes(['Ann', 'Bob', 'Cas', 'Dirk']);
+
+    $cacheability = new CacheableMetadata();
+    $graph = $builder->build($persons(), $edges, ['shared_links' => [$shared]], $cacheability);
+    $this->assertSame([
+      'Ann > Bob: Knows',
+      'Ann > Cas: Shared: Organised by',
+      'Bob > Ann: Shared: Organised by',
+      'Bob > Cas: Shared: Organised by',
+    ], $this->edgeList($graph));
+    $links = array_column($graph['edges'], NULL, 'id');
+    $ann_bob = $links['shared:organised_by:' . $this->nodes['Bob']->id() . ':' . $this->nodes['Ann']->id()];
+    $this->assertSame(2, $ann_bob['weight']);
+    $this->assertSame('Shared: Organised by: Org A, Org B', $ann_bob['tooltip']);
+    $this->assertTrue($ann_bob['undirected']);
+    $this->assertContains('node:' . $this->nodes['Org A']->id(), $cacheability->getCacheTags());
+    // Org C may not be viewed, so Dirk has no links.
+    $this->assertNotContains('Dirk', $this->linkedLabels($graph));
+
+    // The label can be set, and items shared by too many nodes left out.
+    $options = ['shared_links' => [['label' => 'Same organiser', 'max' => 2] + $shared]];
+    $graph = $builder->build($persons(), $edges, $options, new CacheableMetadata());
+    $this->assertSame(['Ann > Bob: Knows', 'Bob > Ann: Same organiser'], $this->edgeList($graph));
+    $this->assertSame('Same organiser: Org B', $graph['edges'][1]['tooltip']);
+    $this->assertSame(['Knows', 'Same organiser'], array_column($graph['legend']['edges'], 'label'));
+
+    // With "source", the targets of edges with the same source are linked.
+    $reversed = array_map(fn(Edge $edge) => new Edge($edge->id, $edge->targetEntityType, $edge->targetId, $edge->sourceEntityType, $edge->sourceId, $edge->type, 'Organises'), array_slice($edges, 0, 5));
+    $graph = $builder->build($persons(), $reversed, ['shared_links' => [['mode' => 'source'] + $shared]], new CacheableMetadata());
+    $this->assertSame([
+      'Ann > Cas: Shared: Organises',
+      'Bob > Ann: Shared: Organises',
+      'Bob > Cas: Shared: Organises',
+    ], $this->edgeList($graph));
+
+    // A shared item in the graph keeps its other edges, not those of the
+    // shared links type.
+    $nodes = $this->graphNodes(['Ann', 'Bob', 'Org B']);
+    $graph = $builder->build($nodes, [...$edges, $this->edge('Org B', 'Ann', 'Knows')], ['shared_links' => [$shared]], new CacheableMetadata());
+    $this->assertSame(['Ann > Bob: Knows', 'Bob > Ann: Shared: Organised by', 'Org B > Ann: Knows'], $this->edgeList($graph));
+
+    // Edges unavailable in the current language fade or hide the links that
+    // depend on them alone.
+    $edges[3] = $organised_by('Ann', 'Org B', TRUE);
+    $edges[0] = $organised_by('Ann', 'Org A', TRUE);
+    $graph = $builder->build($persons(), $edges, ['shared_links' => [$shared], 'language' => 'fade'], new CacheableMetadata());
+    $this->assertSame([
+      'Ann > Bob: Knows',
+      'Ann > Cas: Shared: Organised by (faded)',
+      'Bob > Ann: Shared: Organised by (faded)',
+      'Bob > Cas: Shared: Organised by',
+    ], $this->edgeList($graph));
+    $graph = $builder->build($persons(), $edges, ['shared_links' => [$shared], 'language' => 'hide'], new CacheableMetadata());
+    $this->assertSame(['Ann > Bob: Knows', 'Bob > Cas: Shared: Organised by'], $this->edgeList($graph));
+  }
+
+  /**
+   * Shared items unavailable in the current language are faded or hidden.
+   */
+  public function testSharedLinksLanguage(): void {
+    NodeType::create(['type' => 'organisation', 'name' => 'Organisation'])->save();
+    $org = Node::create(['type' => 'organisation', 'title' => 'Org A']);
+    $org->save();
+    foreach (['Ann', 'Bob'] as $title) {
+      $this->nodes[$title]->addTranslation('nl', ['title' => "$title NL"])->save();
+    }
+    $this->config('system.site')->set('default_langcode', 'nl')->save();
+    $this->container->get('language.default')->set(ConfigurableLanguage::load('nl'));
+    $this->container->get('language_manager')->reset();
+
+    $edges = [];
+    foreach (['Ann', 'Bob'] as $source) {
+      $edges[] = new Edge("org:$source", 'node', $this->nodes[$source]->id(), 'node', $org->id(), 'organised_by', 'Organised by');
+    }
+    $options = ['shared_links' => [['edge_type' => 'organised_by', 'mode' => 'target', 'label' => '', 'max' => 0]]];
+    $builder = $this->container->get('network_views.graph_builder');
+
+    // Org A has no Dutch translation.
+    $graph = $builder->build($this->graphNodes(['Ann', 'Bob']), $edges, $options + ['language' => 'fade'], new CacheableMetadata());
+    $this->assertSame(['Bob > Ann: Shared: Organised by (faded)'], $this->edgeList($graph));
+    $graph = $builder->build($this->graphNodes(['Ann', 'Bob']), $edges, $options + ['language' => 'hide'], new CacheableMetadata());
+    $this->assertSame([], $graph['edges']);
+    $graph = $builder->build($this->graphNodes(['Ann', 'Bob']), $edges, $options, new CacheableMetadata());
+    $this->assertSame(['Bob > Ann: Shared: Organised by'], $this->edgeList($graph));
+
+    // With a translation, the link is available and names it in Dutch.
+    $org->addTranslation('nl', ['title' => 'Org A NL'])->save();
+    $graph = $builder->build($this->graphNodes(['Ann', 'Bob']), $edges, $options + ['language' => 'hide'], new CacheableMetadata());
+    $this->assertSame(['Bob > Ann: Shared: Organised by'], $this->edgeList($graph));
+    $this->assertSame('Shared: Organised by: Org A NL', $graph['edges'][0]['tooltip']);
+  }
+
+  /**
+   * Returns the labels of the nodes with edges.
+   *
+   * @return string[]
+   *   The labels.
+   */
+  protected function linkedLabels(array $graph): array {
+    $labels = array_column($graph['nodes'], 'label', 'id');
+    $linked = [];
+    foreach ($graph['edges'] as $edge) {
+      $linked[] = $labels[$edge['source']];
+      $linked[] = $labels[$edge['target']];
+    }
+    return array_values(array_unique($linked));
+  }
+
 }

@@ -126,27 +126,58 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
    * entities that the current user may view.
    */
   public function getEdgesOf(EntityInterface $entity): array {
-    $entity_type_id = $entity->getEntityTypeId();
+    return $this->getAllEdgesOf([$entity->id() => $entity]);
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * The references of the entities, and the references to them from other
+   * entities that the current user may view.
+   */
+  public function getAllEdgesOf(array $entities): array {
+    $first = reset($entities);
+    if (!$first) {
+      return [];
+    }
+    $entity_type_id = $first->getEntityTypeId();
     $storage = $this->entityTypeManager->getStorage($entity_type_id);
-    $referencing_ids = [];
     $storages = $this->entityFieldManager->getFieldStorageDefinitions($entity_type_id);
+    $ids = array_map('strval', array_keys($entities));
+    $referencing_ids = [];
     foreach ($this->configuration['fields'] as $field_name) {
       if (!isset($storages[$field_name])) {
         continue;
       }
-      $ids = $storage->getQuery()
-        ->accessCheck(TRUE)
-        ->condition($field_name, $entity->id())
-        ->execute();
-      $referencing_ids += array_combine($ids, $ids);
+      foreach (array_chunk($ids, 500) as $chunk) {
+        $referencing_ids += $storage->getQuery()
+          ->accessCheck(TRUE)
+          ->condition($field_name, $chunk, 'IN')
+          ->execute();
+      }
     }
-    $edges = $this->getEdges([$entity->id() => $entity]);
+    // The references of the given entities are found from the entities.
+    $referencing_ids = array_diff($referencing_ids, $ids);
+
+    $edges = $this->getEdges($entities);
+    $given = array_flip($ids);
     foreach ($this->getEdges($storage->loadMultiple($referencing_ids)) as $edge) {
-      if ((string) $edge->targetId === (string) $entity->id() && $edge->targetEntityType === $entity_type_id) {
+      if ($edge->targetEntityType === $entity_type_id && isset($given[(string) $edge->targetId])) {
         $edges[] = $edge;
       }
     }
     return $edges;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getEdgeTypes(string $entity_type_id): array {
+    $types = [];
+    foreach ($this->getReferenceFields($entity_type_id) as $field_name => $label) {
+      $types['field:' . $field_name] = $label;
+    }
+    return $types;
   }
 
   /**

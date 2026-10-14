@@ -67,4 +67,27 @@ abstract class EdgeSourcePluginBase extends PluginBase implements EdgeSourceInte
     return $this->getEdges([$entity->id() => $entity]);
   }
 
+  /**
+   * {@inheritdoc}
+   *
+   * By default, the edges of each entity from getEdgesOf(), once each.
+   * Override this to find them with fewer queries.
+   */
+  public function getAllEdgesOf(array $entities): array {
+    $edges = [];
+    foreach ($entities as $entity) {
+      foreach ($this->getEdgesOf($entity) as $edge) {
+        $edges[$edge->id] = $edge;
+      }
+    }
+    return array_values($edges);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getEdgeTypes(string $entity_type_id): array {
+    return [];
+  }
+
 }

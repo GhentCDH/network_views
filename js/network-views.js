@@ -46,6 +46,8 @@
    * Returns the Cytoscape stylesheet.
    */
   function stylesheet(settings, textColor) {
+    // Shared links are thicker the more items they share.
+    const edgeWidth = (edge) => 1.5 + Math.min((edge.data('weight') || 1) - 1, 4);
     const size =
       settings.size === 'degree'
         ? (node) => 16 + 6 * Math.sqrt(node.degree())
@@ -70,7 +72,7 @@
       {
         selector: 'edge',
         style: {
-          width: 1.5,
+          width: edgeWidth,
           'line-color': 'data(color)',
           'target-arrow-color': 'data(color)',
           'target-arrow-shape': settings.directed ? 'triangle' : 'none',
@@ -106,12 +108,17 @@
         },
       },
       {
+        // Shared links have no direction.
+        selector: 'edge[?undirected]',
+        style: { 'target-arrow-shape': 'none' },
+      },
+      {
         selector: 'edge[?faded]',
         style: { opacity: 0.45, 'line-style': 'dashed' },
       },
       {
         selector: 'edge.highlighted',
-        style: { label: 'data(label)', width: 2.5 },
+        style: { label: 'data(label)', width: (edge) => edgeWidth(edge) + 1 },
       },
       {
         selector: 'node.highlighted',
@@ -125,16 +132,18 @@
   }
 
   /**
-   * Shows the tooltip of a node next to it.
+   * Shows the tooltip of a node or an edge next to it.
    */
-  function showTooltip(tooltip, node) {
-    const html = node.data('tooltip');
+  function showTooltip(tooltip, element) {
+    const html = element.data('tooltip');
     if (!html) {
       return;
     }
     tooltip.innerHTML = html;
-    const position = node.renderedPosition();
-    const offset = node.renderedOuterWidth() / 2 + 8;
+    const position = element.isNode()
+      ? element.renderedPosition()
+      : element.renderedMidpoint();
+    const offset = element.isNode() ? element.renderedOuterWidth() / 2 + 8 : 8;
     tooltip.style.left = `${position.x + offset}px`;
     tooltip.style.top = `${position.y}px`;
     tooltip.hidden = false;
@@ -191,6 +200,16 @@
       cy.elements().removeClass('dimmed highlighted');
       tooltip.hidden = true;
       canvas.style.cursor = '';
+    });
+    // Shared links name the items they share.
+    cy.on('mouseover', 'edge', (event) => {
+      const edge = event.target;
+      edge.addClass('highlighted');
+      showTooltip(tooltip, edge);
+    });
+    cy.on('mouseout', 'edge', (event) => {
+      event.target.removeClass('highlighted');
+      tooltip.hidden = true;
     });
     cy.on('pan zoom', () => {
       tooltip.hidden = true;

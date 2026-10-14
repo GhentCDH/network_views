@@ -28,6 +28,8 @@ views.style.network:
       label: 'Edge sources'
       sequence:
         type: network_views.edge_source.[%key]
+    shared_links:
+      type: network_views_shared_links
     directed:
       type: boolean
       label: 'Directed edges'
@@ -55,6 +57,26 @@ views.style.network:
     legend:
       type: boolean
       label: 'Show a legend'
+
+network_views_shared_links:
+  type: sequence
+  label: 'Shared links'
+  sequence:
+    type: mapping
+    label: 'Shared links of an edge type'
+    mapping:
+      edge_type:
+        type: string
+        label: 'Edge type'
+      mode:
+        type: string
+        label: 'Link the items with the same target or source'
+      label:
+        type: label
+        label: 'Label of the shared links'
+      max:
+        type: integer
+        label: 'Leave out shared items with more items (0: no limit)'
 
 network_views_edge_source:
   type: mapping

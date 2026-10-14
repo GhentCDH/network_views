@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\network_views\Graph;
 
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\TranslatableInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
@@ -40,6 +43,13 @@ class GraphBuilder {
     // Colors per category and per edge type, as lines of "value|color".
     'colors' => '',
     'edge_colors' => '',
+    // Edge types shown as shared links: a list of arrays with the keys
+    // "edge_type" (Edge::$type), "mode" ('target' links the sources of edges
+    // with the same target, 'source' the targets of edges with the same
+    // source), "label" (of the links; empty for "Shared: <type label>") and
+    // "max" (leave out shared items with more items in the graph; 0 for no
+    // limit).
+    'shared_links' => [],
     // Whether to build a legend.
     'legend' => TRUE,
     // Display options for the renderer.
@@ -50,9 +60,16 @@ class GraphBuilder {
     'height' => '600px',
   ];
 
+  /**
+   * The maximum number of shared items named in the tooltip of a link.
+   */
+  protected const MAX_TOOLTIP_ITEMS = 10;
+
   public function __construct(
     protected LanguageManagerInterface $languageManager,
     protected EntityTypeBundleInfoInterface $bundleInfo,
+    protected EntityTypeManagerInterface $entityTypeManager,
+    protected EntityRepositoryInterface $entityRepository,
   ) {}
 
   /**
@@ -61,7 +78,9 @@ class GraphBuilder {
    * @param \Drupal\network_views\Graph\GraphNode[] $nodes
    *   The nodes, keyed by entity ID, all of one entity type.
    * @param \Drupal\network_views\EdgeSource\Edge[] $edges
-   *   The edges; edges that do not connect two of the nodes are left out.
+   *   The edges; edges that do not connect two of the nodes are left out,
+   *   except edges of shared links types, which may lead to the shared items
+   *   outside the graph.
    * @param array $options
    *   Options; see self::DEFAULT_OPTIONS.
    * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
@@ -97,8 +116,14 @@ class GraphBuilder {
     }
 
     $roots = array_filter($nodes, fn(GraphNode $node) => $node->root);
+    $shared_links = array_column($options['shared_links'] ?: [], NULL, 'edge_type');
+    $shared_edges = [];
     $graph_edges = [];
     foreach ($edges as $edge) {
+      if (isset($shared_links[$edge->type])) {
+        $shared_edges[] = $edge;
+        continue;
+      }
       if ($edge->sourceEntityType !== $entity_type_id
         || $edge->targetEntityType !== $entity_type_id
         || !isset($nodes[$edge->sourceId], $nodes[$edge->targetId])
@@ -136,6 +161,8 @@ class GraphBuilder {
         'faded' => $faded,
       ];
     }
+
+    $graph_edges += $this->sharedLinks($nodes, $shared_edges, $shared_links, $entity_type_id, $options['language'], $cacheability);
 
     if ($options['hide_isolated']) {
       $connected = [];
@@ -213,6 +240,118 @@ class GraphBuilder {
       'edges' => array_values($graph_edges),
       'legend' => $legend,
     ];
+  }
+
+  /**
+   * Returns the shared links between nodes.
+   *
+   * Nodes that are the source (or target) of edges of a shared links type
+   * with the same target (or source), the shared item, are linked once per
+   * pair, whatever the number of items they share. Shared items that the
+   * current user may not view are left out.
+   *
+   * @param \Drupal\network_views\Graph\GraphNode[] $nodes
+   *   The nodes, keyed by entity ID.
+   * @param \Drupal\network_views\EdgeSource\Edge[] $edges
+   *   The edges of shared links types.
+   * @param array $shared_links
+   *   The shared links settings, keyed by edge type.
+   * @param string $entity_type_id
+   *   The entity type of the nodes.
+   * @param string $language
+   *   The language option: 'show', 'fade' or 'hide'.
+   * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
+   *   Collects the cacheability of the shared items.
+   *
+   * @return array
+   *   Edge data for the renderer, keyed by ID.
+   */
+  protected function sharedLinks(array $nodes, array $edges, array $shared_links, string $entity_type_id, string $language, CacheableMetadata $cacheability): array {
+    // For each edge type and shared item: its nodes, and whether their edge
+    // to it is available in the current language.
+    $groups = [];
+    $type_labels = [];
+    foreach ($edges as $edge) {
+      if ($edge->languageUnavailable && $language === 'hide') {
+        continue;
+      }
+      [$member_type, $member, $shared_type, $shared] = $shared_links[$edge->type]['mode'] === 'source'
+        ? [$edge->targetEntityType, $edge->targetId, $edge->sourceEntityType, $edge->sourceId]
+        : [$edge->sourceEntityType, $edge->sourceId, $edge->targetEntityType, $edge->targetId];
+      if ($member_type !== $entity_type_id || !isset($nodes[$member])) {
+        continue;
+      }
+      $type_labels[$edge->type] ??= $edge->typeLabel;
+      $groups[$edge->type][$shared_type][$shared][$member] = !empty($groups[$edge->type][$shared_type][$shared][$member]) || !$edge->languageUnavailable;
+    }
+
+    $langcode = $this->languageManager->getCurrentLanguage(LanguageInterface::TYPE_CONTENT)->getId();
+    $links = [];
+    foreach ($groups as $type => $groups_of_type) {
+      $settings = $shared_links[$type];
+      $label = ($settings['label'] ?? '') !== '' ? $settings['label'] : (string) $this->t('Shared: @type', ['@type' => $type_labels[$type]]);
+      $max = (int) ($settings['max'] ?? 0);
+      foreach ($groups_of_type as $shared_type => $members_per_item) {
+        // A shared item links at least two nodes, and at most "max".
+        $members_per_item = array_filter($members_per_item, fn(array $members) => count($members) > 1 && (!$max || count($members) <= $max));
+        if (!$members_per_item) {
+          continue;
+        }
+        foreach ($this->entityTypeManager->getStorage($shared_type)->loadMultiple(array_keys($members_per_item)) as $shared_id => $shared) {
+          $access = $shared->access('view', NULL, TRUE);
+          $cacheability->addCacheableDependency($access);
+          if (!$access->isAllowed()) {
+            continue;
+          }
+          $cacheability->addCacheableDependency($shared);
+          $unavailable = $language !== 'show' && $this->isLanguageUnavailable($shared, $langcode, $cacheability);
+          if ($unavailable && $language === 'hide') {
+            continue;
+          }
+          $shared_label = (string) $this->entityRepository->getTranslationFromContext($shared)->label();
+          $members = $members_per_item[$shared_id];
+          $ids = array_keys($members);
+          sort($ids);
+          foreach ($ids as $i => $a) {
+            foreach (array_slice($ids, $i + 1) as $b) {
+              $id = "shared:$type:$a:$b";
+              $links[$id] ??= [
+                'source' => $this->key($entity_type_id, $a),
+                'target' => $this->key($entity_type_id, $b),
+                'label' => $label,
+                'items' => [],
+                'available' => FALSE,
+              ];
+              $links[$id]['items'][] = $shared_label;
+              $links[$id]['available'] = $links[$id]['available'] || ($members[$a] && $members[$b] && !$unavailable);
+            }
+          }
+        }
+      }
+    }
+
+    $graph_edges = [];
+    foreach ($links as $id => $link) {
+      $items = $link['items'];
+      natcasesort($items);
+      $named = array_slice($items, 0, static::MAX_TOOLTIP_ITEMS);
+      $tooltip = Html::escape($link['label']) . ': ' . Html::escape(implode(', ', $named));
+      if (count($items) > count($named)) {
+        $tooltip .= ' ' . $this->formatPlural(count($items) - count($named), 'and 1 more', 'and @count more');
+      }
+      $graph_edges[$id] = [
+        'id' => $id,
+        'source' => $link['source'],
+        'target' => $link['target'],
+        'type' => $link['label'],
+        'label' => $link['label'],
+        'faded' => !$link['available'] && $language === 'fade',
+        'weight' => count($items),
+        'tooltip' => $tooltip,
+        'undirected' => TRUE,
+      ];
+    }
+    return $graph_edges;
   }
 
   /**

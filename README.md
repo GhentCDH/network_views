@@ -54,9 +54,23 @@ drush en network_views
 | Directed edges | Shows arrows. Without direction, two edges of the same type between the same nodes are merged. |
 | Always show edge labels | Otherwise edge labels are shown when hovering a node. |
 | Edge colors | Optional `label\|color` lines per edge type. With a single edge type, edges are grey. |
+| Shared links | Per edge type: show the edges as direct edges (default), or link the items that share a neighbour through them. See below. |
 | Layout, Height, Legend | Display options. |
 
 Clicking a node opens the entity; hovering a node highlights its neighbourhood.
+
+### Shared links
+
+Under **Edges › Shared links**, each edge type (a reference field, a relation type) can be shown as links between the items that share a neighbour through it, instead of as edges to that neighbour. This is also known as a one-mode projection of a two-mode network. For example, with "Organised by" from initiatives to organisations:
+
+- **Links between items with the same target**: initiatives organised by the same organisation are linked. The organisations do not have to be in the result: a view of only initiatives is enough.
+- **Links between items with the same source**: the other way round, e.g. for "Organises" from organisations to initiatives.
+
+For relation nodes, an edge goes from the first related item to the second; the relation type's name is read in that direction.
+
+Each pair of items is linked once, with no direction. The link is thicker the more items they share, and hovering it lists them (e.g. "Shared: Organised by: Org A, Org B"). The label can be changed per edge type. Shared items the visitor may not view are left out; with the language setting, shared items and edges that are not available in the current language are faded or hidden like nodes and edges.
+
+An item shared by many items links all of them with each other: 100 initiatives of one organisation give 4,950 links. Set **Leave out shared items with more than** a number of items to skip such items.
 
 ## Edge sources
 
@@ -71,12 +85,14 @@ An edge source is a plugin in `src/Plugin/NetworkEdgeSource/` with the `#[Networ
 
 - `getEdges()` receives entities keyed by ID and returns `Edge` objects; edges whose ends are not both in the graph are dropped.
 - `getEdgesOf()` returns the edges that touch one entity, including those from entities that are not known yet (e.g. references *to* it). It is used to find neighbours, as in an ego network.
+- `getAllEdgesOf()` does the same for several entities at once; it is used for shared links, which need the edges to shared items outside the graph. The base class calls `getEdgesOf()` for each entity; override it to use fewer queries.
+- `getEdgeTypes()` lists the types of edges (`Edge::$type` and a label), so that each type can be configured, e.g. as shared links.
 - An `Edge` can carry a `reverseLabel` (e.g. "Student of" for "Teacher of"), used when the graph is read from the root node, and a `languageUnavailable` flag for edges that are not available in the current language.
 - Provide a config schema `network_views.edge_source.PLUGIN_ID` of type `network_views_edge_source` for the settings, and the cacheability of the edges through the plugin's `getCacheTags()`/`getCacheContexts()`.
 
 ## Using the graph in other modules
 
-The `network_views.graph_builder` service builds and renders a graph from `GraphNode` objects (an entity with its label, color category, tooltip, and whether it is the root or faded) and `Edge` objects; it handles language, colors, the legend and the render array. `plugin.manager.network_views.edge_source` creates the configured edge sources, finds the edges between or of entities, and provides the edge source settings form. See `cytoscape_egonetwork` for an example.
+The `network_views.graph_builder` service builds and renders a graph from `GraphNode` objects (an entity with its label, color category, tooltip, and whether it is the root or faded) and `Edge` objects; it handles language, colors, the legend and the render array. `plugin.manager.network_views.edge_source` creates the configured edge sources, finds the edges between or of entities, and provides the edge source and shared links settings forms (pass the shared links configuration to the graph builder as the `shared_links` option). See `cytoscape_egonetwork` for an example.
 
 ## Theming
 

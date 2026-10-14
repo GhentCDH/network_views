@@ -200,4 +200,55 @@ class NetworkStyleTest extends KernelTestBase {
     $this->assertContains('network_views/network', $build['#attached']['library']);
   }
 
+  /**
+   * Edges can be shown as links between rows that share an item.
+   */
+  public function testSharedLinks(): void {
+    // Cas knows Gent as well, and Gent knows Cas and Dirk.
+    $this->nodes['Cas']->set('field_knows', [$this->nodes['Gent']->id()])->save();
+    $this->nodes['Gent']->set('field_knows', [$this->nodes['Cas']->id(), $this->nodes['Dirk']->id()])->save();
+    $shared = ['edge_type' => 'field:field_knows', 'mode' => 'target', 'label' => 'Know the same', 'max' => 0];
+
+    // Ann and Cas know Gent, which is not in the result; Ann and Cas are
+    // both known by Bob.
+    $this->createNetworkView($this->options(['shared_links' => [$shared]]), ['person']);
+    $graph = $this->getGraph();
+    $this->assertSame(['Cas > Ann: Know the same'], $this->edgeList($graph));
+    $this->assertSame('Know the same: Gent', $graph['edges'][0]['tooltip']);
+
+    // With "source", the references from Bob and from Gent, outside the
+    // result, link the persons they reference.
+    Views::getView('test_network')->storage->delete();
+    $this->createNetworkView($this->options(['shared_links' => [['mode' => 'source', 'label' => ''] + $shared]]), ['person']);
+    $graph = $this->getGraph();
+    $this->assertSame(['Cas > Ann: Shared: Knows', 'Cas > Dirk: Shared: Knows'], $this->edgeList($graph));
+    $tooltips = array_column($graph['edges'], 'tooltip');
+    sort($tooltips);
+    $this->assertSame(['Shared: Knows: Bob', 'Shared: Knows: Gent'], $tooltips);
+  }
+
+  /**
+   * The edge types of the reference fields can be configured.
+   */
+  public function testEdgeTypes(): void {
+    $manager = $this->container->get('plugin.manager.network_views.edge_source');
+    $this->assertSame(['field:field_knows' => 'Knows (field_knows)'], $manager->createInstance('entity_reference_fields')->getEdgeTypes('node'));
+
+    $shared = ['edge_type' => 'field:field_knows', 'mode' => 'source', 'label' => 'X', 'max' => 5];
+    $form = $manager->buildSharedLinksForm([$shared], 'node', 'edge_sources');
+    $row = $form['entity_reference_fields']['field:field_knows'];
+    $this->assertSame('source', $row['mode']['#default_value']);
+    $this->assertSame('X', $row['shared_label']['#default_value']);
+    $this->assertSame(5, $row['max']['#default_value']);
+
+    $this->assertSame([
+      ['edge_type' => 'field:field_knows', 'mode' => 'target', 'label' => 'Same', 'max' => 3],
+    ], $manager->submitSharedLinksForm([
+      'entity_reference_fields' => [
+        'field:field_knows' => ['mode' => 'target', 'shared_label' => ' Same ', 'max' => '3'],
+        'field:other' => ['mode' => '', 'shared_label' => '', 'max' => ''],
+      ],
+    ]));
+  }
+
 }

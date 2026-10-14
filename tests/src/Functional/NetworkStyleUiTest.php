@@ -99,6 +99,26 @@ class NetworkStyleUiTest extends BrowserTestBase {
     $this->assertSame('circle', $graph['settings']['layout']);
     $this->assertSame(['#123456'], array_unique(array_column($graph['nodes'], 'color')));
     $this->assertSession()->elementTextContains('css', '.network-views__legend', 'Person (2)');
+
+    // References can be shown as links between the persons that know the
+    // same person.
+    Node::create(['type' => 'person', 'title' => 'Cas', 'field_knows' => [$bob->id()]])->save();
+    $this->drupalGet('admin/structure/views/nojs/display/test_network/default/style_options');
+    $this->assertSession()->pageTextContains('Shared links');
+    $this->submitForm([
+      'style_options[shared_links][entity_reference_fields][field:field_knows][mode]' => 'target',
+      'style_options[shared_links][entity_reference_fields][field:field_knows][shared_label]' => 'Know the same',
+    ], 'Apply');
+    $this->submitForm([], 'Save');
+    $options = View::load('test_network')->getDisplay('default')['display_options']['style']['options'];
+    $this->assertSame([
+      ['edge_type' => 'field:field_knows', 'mode' => 'target', 'label' => 'Know the same', 'max' => 0],
+    ], $options['shared_links']);
+
+    $this->drupalGet('network');
+    $graph = json_decode($this->assertSession()->elementExists('css', '.network-views__canvas')->getAttribute('data-network-views'), TRUE);
+    $this->assertSame(['Ann > Cas: Know the same'], $this->edgeList($graph));
+    $this->assertSame('Know the same: Bob', $graph['edges'][0]['tooltip']);
   }
 
 }
