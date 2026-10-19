@@ -89,8 +89,15 @@ network_views_edge_source:
       type: mapping
       label: 'Settings'
 
+# Edge sources without a schema of their own, e.g. from a module that is not
+# installed: settings that name such an edge source (as the default settings
+# of the cytoscape_egonetwork formatter do) can still be saved.
 network_views.edge_source.*:
   type: network_views_edge_source
+  mapping:
+    settings:
+      type: ignore
+      label: 'Settings'
 
 network_views.edge_source.entity_reference_fields:
   type: network_views_edge_source

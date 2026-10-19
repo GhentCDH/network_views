@@ -100,7 +100,7 @@ The template is `network-views.html.twig`. The graph data is a JSON object in th
 
 ## Development
 
-Unit, kernel and functional tests are in `tests/`.
+Unit, kernel, functional and browser (FunctionalJavascript) tests are in `tests/`. The browser tests need a WebDriver (e.g. chromedriver) and internet access for Cytoscape.js; `.github/run-tests.sh` runs them when `MINK_DRIVER_ARGS_WEBDRIVER` is set. `tests/src/Traits/CytoscapeTrait.php` reads the rendered graph from its Cytoscape instance and dispatches mouse events on nodes and edges, also for the tests of other modules.
 
 ```bash
 SIMPLETEST_DB=sqlite://localhost//tmp/test.sqlite SIMPLETEST_BASE_URL=http://127.0.0.1:8080 \

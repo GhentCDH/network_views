@@ -7,8 +7,12 @@
 #   DRUPAL_CORE           Composer constraint for drupal/core (e.g. ^10.3, ^11).
 #   NV_PHPSTAN            Optional; 1 runs PHPStan (with Drupal 11: on older
 #                         cores, newer core classes are reported missing).
+#   MINK_DRIVER_ARGS_WEBDRIVER
+#                         Optional; WebDriver settings that enable the browser
+#                         tests (tests/src/FunctionalJavascript).
 #   SIMPLETEST_BASE_URL   URL of the web server that this script starts for the
-#                         functional tests (default http://localhost:8080).
+#                         functional tests (default http://localhost:8080); with
+#                         a WebDriver, the URL at which the browser reaches it.
 #   BUILD_DIR             Where the Drupal project is built (default /tmp/nv-build).
 set -euo pipefail
 
@@ -55,5 +59,11 @@ php -S "0.0.0.0:${port%%/*}" -t "$BUILD_DIR/web" "$BUILD_DIR/web/.ht.router.php"
 server_pid=$!
 trap 'kill "$server_pid"' EXIT
 
-echo "== Tests"
-"$BUILD_DIR/vendor/bin/phpunit" -c "$BUILD_DIR/web/core/phpunit.xml.dist" "$MODULE"
+TESTS=("$MODULE/tests/src/Unit" "$MODULE/tests/src/Kernel" "$MODULE/tests/src/Functional")
+if [ -n "${MINK_DRIVER_ARGS_WEBDRIVER:-}" ]; then
+  TESTS+=("$MODULE/tests/src/FunctionalJavascript")
+fi
+for tests in "${TESTS[@]}"; do
+  echo "== Tests ($tests)"
+  "$BUILD_DIR/vendor/bin/phpunit" -c "$BUILD_DIR/web/core/phpunit.xml.dist" "$tests"
+done

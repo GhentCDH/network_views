@@ -17,7 +17,8 @@ jobs:
         include:
           - drupal: '^10.3'
             # PHPStan runs on Drupal 11 only: on older cores, newer core
-            # classes are reported missing.
+            # classes are reported missing. The browser tests run on Drupal
+            # 11 too.
             phpstan: false
           - drupal: '^11'
             phpstan: true
@@ -29,6 +30,11 @@ jobs:
           extensions: pdo_sqlite, gd
           tools: composer:v2
           coverage: none
+      - name: Start chromedriver
+        if: matrix.phpstan
+        run: |
+          "$CHROMEWEBDRIVER/chromedriver" --port=9515 > /tmp/chromedriver.log 2>&1 &
+          echo 'MINK_DRIVER_ARGS_WEBDRIVER=["chrome", {"browserName":"chrome","goog:chromeOptions":{"w3c":true,"args":["--headless=new","--no-sandbox","--disable-dev-shm-usage","--window-size=1280,1024"]}}, "http://localhost:9515"]' >> "$GITHUB_ENV"
       - name: Build and test
         env:
           DRUPAL_CORE: ${{ matrix.drupal }}
