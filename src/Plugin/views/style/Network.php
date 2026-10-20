@@ -425,7 +425,7 @@ class Network extends StylePluginBase {
       $rows = $this->termRows($field_id);
       $covered = array_merge($covered, array_keys($rows));
       $element['terms_' . $field_id] = ColorSettings::table(
-        $this->t('Terms of @field', ['@field' => $this->view->field[$field_id]->adminLabel()]),
+        $this->t('Terms of @field', ['@field' => $this->displayHandler->getHandler('field', $field_id)->adminLabel()]),
         $rows,
         $current,
         ['visible' => [':input[name="style_options[color_field]"]' => ['value' => $field_id]]],
@@ -517,8 +517,12 @@ class Network extends StylePluginBase {
    *   ColorSettings::MAX_ROWS.
    */
   protected function termRows(string $field_id): array {
-    $handler = $this->view->field[$field_id];
-    assert($handler instanceof EntityField);
+    // The handlers of the display: in the options form, the view's fields
+    // are not initialized yet.
+    $handler = $this->displayHandler->getHandler('field', $field_id);
+    if (!$handler instanceof EntityField) {
+      return [];
+    }
     $vocabularies = array_keys($this->fieldDefinitionOf($handler)?->getSetting('handler_settings')['target_bundles'] ?? []);
     if (!$vocabularies) {
       return [];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\network_views\Kernel;
 
 use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\Core\Form\FormState;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
@@ -276,6 +277,67 @@ class NetworkTermsTest extends KernelTestBase {
     $config = ['term_parents' => ['enabled' => TRUE, 'settings' => []]];
     $edges = $manager->getEdgesOf($config, $this->terms['History'], new CacheableMetadata());
     $this->assertSame([(string) $this->terms['Archives']->id()], array_map(fn($edge) => (string) $edge->sourceId, $edges));
+  }
+
+  /**
+   * Shared links can be colored by the term they share.
+   */
+  public function testSharedTermColors(): void {
+    $this->createPerson('Dan', ['Archives', 'History']);
+    $history = 'taxonomy_term:' . $this->terms['History']->id();
+    $this->createNetworkView([
+      'edge_sources' => $this->topicEdges(FALSE),
+      'shared_links' => [['edge_type' => 'field:field_topics', 'mode' => 'target', 'label' => '', 'max' => 0]],
+      'edge_color_by' => 'shared_item',
+      'edge_color_map' => [$history => '#aa0000'],
+    ], ['person']);
+    $graph = $this->getGraph();
+    $labels = array_column($graph['nodes'], 'label', 'id');
+    $colors = [];
+    foreach ($graph['edges'] as $link) {
+      $colors[$labels[$link['source']] . '-' . $labels[$link['target']]] = $link['color'];
+    }
+    // Ann and Dan share Archives and History (grey); Bob and Dan share
+    // Archives only.
+    $this->assertSame('#9a9a9a', $colors['Ann-Dan']);
+    $this->assertNotSame('#9a9a9a', $colors['Bob-Dan']);
+    $legend = array_column($this->renderNetwork()['#legend']['edges'], 'label');
+    $this->assertSame(['Archives', 'Several shared items'], $legend);
+  }
+
+  /**
+   * The settings form offers a color per term of a reference field.
+   */
+  public function testTermColorsInSettingsForm(): void {
+    $topics = [
+      'id' => 'field_topics',
+      'table' => 'node__field_topics',
+      'field' => 'field_topics',
+      'plugin_id' => 'field',
+      'entity_type' => 'node',
+      'entity_field' => 'field_topics',
+      'type' => 'entity_reference_label',
+    ];
+    $this->createNetworkView(['edge_sources' => $this->topicEdges(TRUE)], ['person'], ['field_topics' => $topics]);
+    $view = Views::getView('test_network');
+    $view->setDisplay('default');
+    $view->initStyle();
+    $form = [];
+    $view->style_plugin->buildOptionsForm($form, new FormState());
+
+    // The color field offers the reference field, not the title.
+    $this->assertArrayHasKey('field_topics', $form['color_field']['#options']);
+    $this->assertArrayNotHasKey('title', $form['color_field']['#options']);
+    // Bundles of the base entity type and of the items shown as nodes.
+    $this->assertArrayHasKey('node:person', $form['node_colors']['bundles']);
+    $this->assertArrayHasKey('taxonomy_term:topics', $form['node_colors']['bundles']);
+    // The terms the field can refer to, by name.
+    $table = $form['node_colors']['terms_field_topics'];
+    $rows = array_filter($table, fn($key) => !str_starts_with((string) $key, '#'), ARRAY_FILTER_USE_KEY);
+    $this->assertCount(4, $rows);
+    $this->assertSame('Archives (taxonomy_term:' . $this->terms['Archives']->id() . ')', $rows['taxonomy_term:' . $this->terms['Archives']->id()]['label']['#plain_text']);
+    // The edge types, also the shared links types.
+    $this->assertArrayHasKey('field:field_topics', $form['edge_color_map']['types']);
   }
 
 }
