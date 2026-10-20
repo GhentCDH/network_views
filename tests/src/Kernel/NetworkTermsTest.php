@@ -9,6 +9,7 @@ use Drupal\Core\Form\FormState;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
@@ -45,6 +46,7 @@ class NetworkTermsTest extends KernelTestBase {
     'text',
     'node',
     'taxonomy',
+    'language',
     'views',
     'network_views',
   ];
@@ -212,6 +214,20 @@ class NetworkTermsTest extends KernelTestBase {
     $this->assertSame('#00aa00', $colors['Bob']);
     $this->assertCount(3, array_unique($colors));
     $this->assertSame(['Archives', 'History', 'Philosophy'], array_column($this->renderNetwork()['#legend']['nodes'], 'label'));
+
+    // In Dutch, the legend shows the translated term, with the same color.
+    $this->installConfig(['language']);
+    ConfigurableLanguage::createFromLangcode('nl')->save();
+    $this->container->get('language_manager')->reset();
+    // The loaded term knows the languages of when it was loaded.
+    $this->container->get('entity_type.manager')->getStorage('taxonomy_term')->resetCache();
+    Term::load($this->terms['Archives']->id())->addTranslation('nl', ['name' => 'Archieven'])->save();
+    $this->config('system.site')->set('default_langcode', 'nl')->save();
+    $this->container->get('language.default')->set(ConfigurableLanguage::load('nl'));
+    $this->container->get('language_manager')->reset();
+    $graph = $this->getGraph();
+    $this->assertSame('#00aa00', array_column($graph['nodes'], 'color', 'label')['Bob']);
+    $this->assertSame(['Archieven', 'History', 'Philosophy'], array_column($this->renderNetwork()['#legend']['nodes'], 'label'));
   }
 
   /**

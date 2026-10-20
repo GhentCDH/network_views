@@ -593,16 +593,30 @@ class Network extends StylePluginBase {
     return match ($field_id) {
       '' => ['', NULL],
       '_bundle' => [$this->graphBuilder->bundleLabel($entity), $this->graphBuilder->bundleKey($entity)],
-      // The referenced item is the key; older settings with another kind of
-      // field use the text.
-      default => [$this->plainText($index, $field_id, TRUE), $this->referencedKey($index, $field_id)],
+      default => $this->fieldCategory($index, $field_id),
     };
   }
 
   /**
-   * Returns the graph key of the first item a reference field refers to.
+   * Returns the category of a row from a field: its label and color key.
+   *
+   * For a reference field, the referenced item: its label in the current
+   * language, and its key. Older settings with another kind of field use the
+   * text of the field as label and key.
    */
-  protected function referencedKey(int $index, string $field_id): ?string {
+  protected function fieldCategory(int $index, string $field_id): array {
+    $target = $this->referencedEntity($index, $field_id);
+    if (!$target) {
+      return [$this->plainText($index, $field_id, TRUE), NULL];
+    }
+    $label = (string) $this->entityRepository->getTranslationFromContext($target)->label();
+    return [$label, $this->graphBuilder->entityKey($target)];
+  }
+
+  /**
+   * Returns the first item a reference field of a row refers to.
+   */
+  protected function referencedEntity(int $index, string $field_id): ?EntityInterface {
     $handler = $this->view->field[$field_id] ?? NULL;
     if (!$handler instanceof EntityField) {
       return NULL;
@@ -610,7 +624,7 @@ class Network extends StylePluginBase {
     $items = $handler->getItems($this->view->result[$index]);
     $raw = $items ? (reset($items)['raw'] ?? NULL) : NULL;
     $target = $raw instanceof EntityReferenceItem ? $raw->entity : NULL;
-    return $target instanceof EntityInterface ? $this->graphBuilder->entityKey($target) : NULL;
+    return $target instanceof EntityInterface ? $target : NULL;
   }
 
   /**
