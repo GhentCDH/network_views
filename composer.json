@@ -6,5 +6,10 @@
   "keywords": ["drupal", "views", "network", "graph", "cytoscape", "visualization"],
   "require": {
     "drupal/core": "^10.3 || ^11"
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-main": "1.0.x-dev"
+    }
   }
 }
