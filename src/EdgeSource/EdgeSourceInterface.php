@@ -114,4 +114,18 @@ interface EdgeSourceInterface extends PluginInspectionInterface, ConfigurableInt
    */
   public function getEdgeTypes(string $entity_type_id): array;
 
+  /**
+   * Returns the groups of edge types the edge source can return.
+   *
+   * Used to color edges by group (Edge::$group), e.g. relation content types.
+   *
+   * @param string $entity_type_id
+   *   The base entity type of the graph.
+   *
+   * @return string[]
+   *   The labels of the groups, keyed by group key; empty when the groups are
+   *   the edge types.
+   */
+  public function getEdgeGroups(string $entity_type_id): array;
+
 }

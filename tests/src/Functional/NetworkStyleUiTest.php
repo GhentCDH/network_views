@@ -70,14 +70,15 @@ class NetworkStyleUiTest extends BrowserTestBase {
     // Invalid values are refused.
     $this->submitForm([
       'style_options[height]' => '600',
-      'style_options[colors]' => 'Person|url(x)',
+      'style_options[node_colors][other]' => 'node:1|url(x)',
     ], 'Apply');
     $this->assertSession()->pageTextContains('The height must be a number with a unit');
-    $this->assertSession()->pageTextContains('Invalid lines: Person|url(x)');
+    $this->assertSession()->pageTextContains('Invalid lines: node:1|url(x)');
 
     $this->submitForm([
       'style_options[height]' => '400px',
-      'style_options[colors]' => 'Person|#123456',
+      'style_options[node_colors][bundles][node:person][color]' => '#123456',
+      'style_options[node_colors][other]' => '',
       'style_options[tooltip_fields][title]' => 'title',
       'style_options[edge_sources][entity_reference_fields][enabled]' => 1,
       'style_options[edge_sources][entity_reference_fields][settings][fields][field_knows]' => 'field_knows',
@@ -88,8 +89,9 @@ class NetworkStyleUiTest extends BrowserTestBase {
     $options = View::load('test_network')->getDisplay('default')['display_options']['style']['options'];
     $this->assertSame(['title'], $options['tooltip_fields']);
     $this->assertSame([
-      'entity_reference_fields' => ['enabled' => TRUE, 'settings' => ['fields' => ['field_knows']]],
+      'entity_reference_fields' => ['enabled' => TRUE, 'settings' => ['fields' => ['field_knows'], 'node_fields' => []]],
     ], $options['edge_sources']);
+    $this->assertSame(['node:person' => '#123456'], $options['node_colors']);
 
     $this->drupalGet('network');
     $canvas = $this->assertSession()->elementExists('css', '.network-views__canvas');
@@ -119,6 +121,31 @@ class NetworkStyleUiTest extends BrowserTestBase {
     $graph = json_decode($this->assertSession()->elementExists('css', '.network-views__canvas')->getAttribute('data-network-views'), TRUE);
     $this->assertSame(['Ann > Cas: Know the same'], $this->edgeList($graph));
     $this->assertSame('Know the same: Bob', $graph['edges'][0]['tooltip']);
+
+    // Colors are set per bundle and per edge type, by machine name.
+    $this->drupalGet('admin/structure/views/nojs/display/test_network/default/style_options');
+    $this->assertSession()->fieldExists('style_options[node_colors][bundles][node:person][color]');
+    $this->submitForm([
+      'style_options[node_colors][bundles][node:person][color]' => 'not a color',
+    ], 'Apply');
+    $this->assertSession()->pageTextContains('not a color is not a color');
+    $this->submitForm([
+      'style_options[node_colors][bundles][node:person][color]' => '#aa0000',
+      'style_options[node_colors][other]' => '',
+      'style_options[edge_color_by]' => 'type',
+      'style_options[edge_color_map][types][shared:field:field_knows][color]' => '#00aa00',
+    ], 'Apply');
+    // Regression test: a saved "no limit" (0) of the shared links was refused
+    // when the form was submitted again.
+    $this->assertSession()->statusMessageNotExists('error');
+    $this->submitForm([], 'Save');
+    $options = View::load('test_network')->getDisplay('default')['display_options']['style']['options'];
+    $this->assertSame(['node:person' => '#aa0000'], $options['node_colors']);
+    $this->assertSame(['shared:field:field_knows' => '#00aa00'], $options['edge_color_map']);
+    $this->drupalGet('network');
+    $graph = json_decode($this->assertSession()->elementExists('css', '.network-views__canvas')->getAttribute('data-network-views'), TRUE);
+    $this->assertSame(['#aa0000'], array_values(array_unique(array_column($graph['nodes'], 'color'))));
+    $this->assertSame('#00aa00', $graph['edges'][0]['color']);
   }
 
 }

@@ -20,7 +20,10 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * Edges from the entity reference fields of the result entities.
  *
  * Each reference from a result entity to another result entity is an edge,
- * directed from the referencing to the referenced entity.
+ * directed from the referencing to the referenced entity. Fields can also
+ * refer to entities that are not in the result, such as terms or content of
+ * another type: their referenced entities can be shown as nodes ("show as
+ * node"), or the field can be used for shared links.
  */
 #[NetworkEdgeSource(
   id: 'entity_reference_fields',
@@ -56,7 +59,7 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return ['fields' => []];
+    return ['fields' => [], 'node_fields' => []];
   }
 
   /**
@@ -70,12 +73,20 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
    * {@inheritdoc}
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state, string $entity_type_id): array {
+    $fields = $this->getReferenceFields($entity_type_id);
     $form['fields'] = [
       '#type' => 'checkboxes',
       '#title' => new TranslatableMarkup('Fields'),
       '#description' => new TranslatableMarkup('References in these fields are edges. The field label is the edge label.'),
-      '#options' => $this->getReferenceFields($entity_type_id),
+      '#options' => $fields,
       '#default_value' => $this->configuration['fields'],
+    ];
+    $form['node_fields'] = [
+      '#type' => 'checkboxes',
+      '#title' => new TranslatableMarkup('Show the referenced items as nodes'),
+      '#description' => new TranslatableMarkup('For fields that refer to items that are not in the result, such as terms or content of another type: the referenced items become nodes too (only those the visitor may view, with the language setting). The filters of the view do not apply to them. Without this, such references are only edges between result rows, or shared links.'),
+      '#options' => $fields,
+      '#default_value' => $this->configuration['node_fields'],
     ];
     return $form;
   }
@@ -84,7 +95,12 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
    * {@inheritdoc}
    */
   public function submitConfigurationForm(array $values): array {
-    return ['fields' => array_values(array_filter($values['fields'] ?? []))];
+    $fields = array_values(array_filter($values['fields'] ?? []));
+    return [
+      'fields' => $fields,
+      // Only fields that are edges can show their targets.
+      'node_fields' => array_values(array_intersect(array_filter($values['node_fields'] ?? []), $fields)),
+    ];
   }
 
   /**
@@ -103,6 +119,7 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
         $definition = $entity->getFieldDefinition($field_name);
         $target_type = $definition->getFieldStorageDefinition()->getSetting('target_type');
         $label = (string) $definition->getLabel();
+        $as_node = in_array($field_name, $this->configuration['node_fields'], TRUE);
         foreach (array_filter(array_column($entity->get($field_name)->getValue(), 'target_id')) as $target_id) {
           $edges[] = new Edge(
             id: implode(':', [$field_name, $entity->id(), $target_id]),
@@ -112,6 +129,7 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
             targetId: $target_id,
             type: 'field:' . $field_name,
             typeLabel: $label,
+            otherEndAsNode: $as_node,
           );
         }
       }
@@ -146,7 +164,8 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
     $ids = array_map('strval', array_keys($entities));
     $referencing_ids = [];
     foreach ($this->configuration['fields'] as $field_name) {
-      if (!isset($storages[$field_name])) {
+      // References to the entities can only come from fields to their type.
+      if (!isset($storages[$field_name]) || $storages[$field_name]->getSetting('target_type') !== $entity_type_id) {
         continue;
       }
       foreach (array_chunk($ids, 500) as $chunk) {
@@ -183,8 +202,9 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
   /**
    * Returns the entity reference fields of an entity type that can be edges.
    *
-   * Only fields that reference the entity type itself are offered: references
-   * to other entity types never end at a result row.
+   * Fields to other entity types are offered too: their references are
+   * edges when the referenced items are shown as nodes, and they can be used
+   * for shared links. Base fields (such as the author) are left out.
    *
    * @return string[]
    *   Field labels keyed by field name.
@@ -194,13 +214,19 @@ class EntityReferenceFields extends EdgeSourcePluginBase implements ContainerFac
     $storages = $this->entityFieldManager->getFieldStorageDefinitions($entity_type_id);
     foreach ($this->entityFieldManager->getFieldMap()[$entity_type_id] ?? [] as $field_name => $info) {
       $storage = $storages[$field_name] ?? NULL;
+      $target_type = $storage?->getSetting('target_type');
       if (!$storage
         || !in_array($info['type'], ['entity_reference', 'entity_reference_revisions'], TRUE)
-        || $storage->getSetting('target_type') !== $entity_type_id
+        || !$target_type
+        || !$this->entityTypeManager->hasDefinition($target_type)
         || $storage->isBaseField()) {
         continue;
       }
-      $options[$field_name] = $this->fieldLabel($entity_type_id, $field_name, $info['bundles']) . " ($field_name)";
+      $label = $this->fieldLabel($entity_type_id, $field_name, $info['bundles']) . " ($field_name)";
+      if ($target_type !== $entity_type_id) {
+        $label .= ' → ' . $this->entityTypeManager->getDefinition($target_type)->getLabel();
+      }
+      $options[$field_name] = $label;
     }
     asort($options);
     return $options;

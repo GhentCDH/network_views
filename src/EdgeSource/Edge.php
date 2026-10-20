@@ -36,6 +36,16 @@ final class Edge {
    *   Whether the edge is not available in the current language, e.g.
    *   because something it depends on has no translation in that language.
    *   Depending on the settings, such edges are hidden or shown faded.
+   * @param string|null $group
+   *   A machine key of a coarser kind of edge, e.g. the relation content
+   *   type of relations whose type is their relation type term; edges can be
+   *   colored by group. NULL for the same as the type.
+   * @param string|null $groupLabel
+   *   The human-readable label of the group.
+   * @param bool $otherEndAsNode
+   *   Whether the end that is not a node of the graph may be added as a node,
+   *   when the other end is one: e.g. a referenced term ("show as node"), or
+   *   the other side of a relation.
    */
   public function __construct(
     public readonly string $id,
@@ -47,6 +57,9 @@ final class Edge {
     public readonly string $typeLabel,
     public readonly ?string $reverseLabel = NULL,
     public readonly bool $languageUnavailable = FALSE,
+    public readonly ?string $group = NULL,
+    public readonly ?string $groupLabel = NULL,
+    public readonly bool $otherEndAsNode = FALSE,
   ) {}
 
 }

@@ -90,4 +90,11 @@ abstract class EdgeSourcePluginBase extends PluginBase implements EdgeSourceInte
     return [];
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function getEdgeGroups(string $entity_type_id): array {
+    return [];
+  }
+
 }

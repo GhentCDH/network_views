@@ -12,6 +12,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\network_views\EdgeSource\Edge;
 use Drupal\network_views\Graph\GraphNode;
+use Drupal\network_views\Palette;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
@@ -262,7 +263,7 @@ class GraphBuilderTest extends KernelTestBase {
       'Bob > Cas: Shared: Organised by',
     ], $this->edgeList($graph));
     $links = array_column($graph['edges'], NULL, 'id');
-    $ann_bob = $links['shared:organised_by:' . $this->nodes['Bob']->id() . ':' . $this->nodes['Ann']->id()];
+    $ann_bob = $links['shared:organised_by:node:' . $this->nodes['Bob']->id() . ':node:' . $this->nodes['Ann']->id()];
     $this->assertSame(2, $ann_bob['weight']);
     $this->assertSame('Shared: Organised by: Org A, Org B', $ann_bob['tooltip']);
     $this->assertTrue($ann_bob['undirected']);
@@ -357,6 +358,165 @@ class GraphBuilderTest extends KernelTestBase {
       $linked[] = $labels[$edge['target']];
     }
     return array_values(array_unique($linked));
+  }
+
+  /**
+   * Node colors are configured and assigned by key, not by label.
+   */
+  public function testNodeColorKeys(): void {
+    $builder = $this->container->get('network_views.graph_builder');
+    $node = fn(string $title, string $category, ?string $key) => new GraphNode($this->nodes[$title], $title, $category, colorKey: $key);
+    $nodes = [
+      $node('Ann', 'History', 'taxonomy_term:1'),
+      $node('Bob', 'History', 'taxonomy_term:1'),
+      $node('Cas', 'Philosophy', 'taxonomy_term:2'),
+      $node('Dirk', 'Linguistics', 'taxonomy_term:3'),
+    ];
+    $colors = fn(array $graph) => array_column($graph['nodes'], 'color', 'label');
+
+    // A color by key; the others from the palette.
+    $graph = $builder->build($nodes, [], ['node_colors' => ['taxonomy_term:2' => '#000000']], new CacheableMetadata());
+    $this->assertSame('#000000', $colors($graph)['Cas']);
+    $this->assertSame($colors($graph)['Ann'], $colors($graph)['Bob']);
+    $this->assertSame([
+      ['label' => 'History', 'color' => $colors($graph)['Ann'], 'count' => 2],
+      ['label' => 'Linguistics', 'color' => $colors($graph)['Dirk'], 'count' => 1],
+      ['label' => 'Philosophy', 'color' => '#000000', 'count' => 1],
+    ], $graph['legend']['nodes']);
+
+    // The same keys with labels in another language get the same colors.
+    $dutch = [
+      $node('Ann', 'Geschiedenis', 'taxonomy_term:1'),
+      $node('Bob', 'Geschiedenis', 'taxonomy_term:1'),
+      $node('Cas', 'Filosofie', 'taxonomy_term:2'),
+      $node('Dirk', 'Taalkunde', 'taxonomy_term:3'),
+    ];
+    $dutch_graph = $builder->build($dutch, [], ['node_colors' => ['taxonomy_term:2' => '#000000']], new CacheableMetadata());
+    $this->assertSame(array_values($colors($graph)), array_values($colors($dutch_graph)));
+
+    // Older settings by label still apply to categories without a color by
+    // key, and categories without a key use their label.
+    $this->createPerson('Eva');
+    $graph = $builder->build([...$nodes, $node('Eva', 'Other', NULL)], [], [
+      'node_colors' => ['taxonomy_term:2' => '#000000'],
+      'colors' => "History|#111111\nPhilosophy|#222222\nOther|#333333",
+    ], new CacheableMetadata());
+    $this->assertSame(['Ann' => '#111111', 'Bob' => '#111111', 'Cas' => '#000000', 'Eva' => '#333333'], array_diff_key($colors($graph), ['Dirk' => TRUE]));
+  }
+
+  /**
+   * Edges are colored by type, group, shared item or not at all.
+   */
+  public function testEdgeColorModes(): void {
+    $builder = $this->container->get('network_views.graph_builder');
+    $edge = function (string $source, string $target, string $type, string $label, ?string $group = NULL, ?string $group_label = NULL): Edge {
+      $source_id = $this->nodes[$source]->id();
+      $target_id = $this->nodes[$target]->id();
+      return new Edge("$type:$source-$target", 'node', $source_id, 'node', $target_id, $type, $label, group: $group, groupLabel: $group_label);
+    };
+    $edges = [
+      $edge('Ann', 'Bob', 'relation_type:1', 'Teacher of', 'relation_bundle:rel', 'Person relation'),
+      $edge('Bob', 'Cas', 'relation_type:2', 'Friend of', 'relation_bundle:rel', 'Person relation'),
+      $edge('Cas', 'Dirk', 'field:field_knows', 'Knows'),
+    ];
+    $nodes = fn() => $this->graphNodes(['Ann', 'Bob', 'Cas', 'Dirk']);
+    $legend = fn(array $graph) => array_column($graph['legend']['edges'] ?? [], 'label');
+    $colors = fn(array $graph) => array_column($graph['edges'], 'color', 'label');
+
+    $by_type = $builder->build($nodes(), $edges, ['edge_color_map' => ['relation_type:1' => '#123456']], new CacheableMetadata());
+    $this->assertSame(['Friend of', 'Knows', 'Teacher of'], $legend($by_type));
+    $this->assertSame('#123456', $colors($by_type)['Teacher of']);
+    $this->assertCount(3, array_unique($colors($by_type)));
+
+    $options = ['edge_color_by' => 'group', 'edge_color_map' => ['relation_bundle:rel' => '#654321']];
+    $by_group = $builder->build($nodes(), $edges, $options, new CacheableMetadata());
+    $this->assertSame(['Knows', 'Person relation'], $legend($by_group));
+    $this->assertSame('#654321', $colors($by_group)['Teacher of']);
+    $this->assertSame('#654321', $colors($by_group)['Friend of']);
+
+    $none = $builder->build($nodes(), $edges, ['edge_color_by' => 'none'], new CacheableMetadata());
+    $this->assertSame([], $legend($none));
+    $this->assertSame([Palette::NEUTRAL], array_values(array_unique($colors($none))));
+  }
+
+  /**
+   * Shared links can be colored by the item they share.
+   */
+  public function testSharedLinkColors(): void {
+    NodeType::create(['type' => 'organisation', 'name' => 'Organisation'])->save();
+    foreach (['Org A', 'Org B'] as $title) {
+      $this->nodes[$title] = Node::create(['type' => 'organisation', 'title' => $title]);
+      $this->nodes[$title]->save();
+    }
+    $edges = [];
+    // Ann and Bob in both, Cas in Org B, Dirk in Org A.
+    $memberships = [
+      ['Ann', 'Org A'], ['Bob', 'Org A'], ['Ann', 'Org B'],
+      ['Bob', 'Org B'], ['Cas', 'Org B'], ['Dirk', 'Org A'],
+    ];
+    foreach ($memberships as [$source, $target]) {
+      $source_id = $this->nodes[$source]->id();
+      $target_id = $this->nodes[$target]->id();
+      $edges[] = new Edge("org:$source-$target", 'node', $source_id, 'node', $target_id, 'organised_by', 'Organised by');
+    }
+    $options = [
+      'shared_links' => [['edge_type' => 'organised_by', 'mode' => 'target', 'label' => '', 'max' => 0]],
+      'edge_color_by' => 'shared_item',
+      'edge_color_map' => ['node:' . $this->nodes['Org A']->id() => '#aa0000'],
+    ];
+    $graph = $this->container->get('network_views.graph_builder')->build($this->graphNodes(['Ann', 'Bob', 'Cas', 'Dirk']), $edges, $options, new CacheableMetadata());
+    $labels = array_column($graph['nodes'], 'label', 'id');
+    $colors = [];
+    foreach ($graph['edges'] as $link) {
+      $pair = [$labels[$link['source']], $labels[$link['target']]];
+      sort($pair);
+      $colors[implode('-', $pair)] = $link['color'];
+    }
+    // Via Org A only, via Org B only, and via both (grey).
+    $this->assertSame('#aa0000', $colors['Ann-Dirk']);
+    $this->assertSame($colors['Ann-Cas'], $colors['Bob-Cas']);
+    $this->assertNotContains($colors['Ann-Cas'], ['#aa0000', Palette::NEUTRAL]);
+    $this->assertSame(Palette::NEUTRAL, $colors['Ann-Bob']);
+    $this->assertSame(['Org A', 'Org B', 'Several shared items'], array_column($graph['legend']['edges'], 'label'));
+  }
+
+  /**
+   * Targets of "show as node" edges become nodes, colored by bundle.
+   */
+  public function testExtraNodes(): void {
+    NodeType::create(['type' => 'organisation', 'name' => 'Organisation'])->save();
+    $orgs = [];
+    foreach (['Org A' => 1, 'Org B' => 1, 'Org C' => 0] as $title => $status) {
+      $values = ['type' => 'organisation', 'title' => $title, 'status' => $status];
+      $orgs[$title] = $this->nodes[$title] = Node::create($values);
+      $orgs[$title]->save();
+    }
+    $member = function (string $source, string $target, bool $as_node = TRUE): Edge {
+      $source_id = $this->nodes[$source]->id();
+      $target_id = $this->nodes[$target]->id();
+      return new Edge("m:$source-$target", 'node', $source_id, 'node', $target_id, 'field:field_member', 'Member of', otherEndAsNode: $as_node);
+    };
+    $edges = [
+      $member('Ann', 'Org A'),
+      $member('Bob', 'Org B'),
+      $member('Cas', 'Org C'),
+      $member('Dirk', 'Org A', FALSE),
+    ];
+    // The missing end can also be the source, e.g. of a relation.
+    $edges[] = new Edge('employs', 'node', $orgs['Org B']->id(), 'node', $this->nodes['Dirk']->id(), 'employs', 'Employs', otherEndAsNode: TRUE);
+    $builder = $this->container->get('network_views.graph_builder');
+
+    $graph = $builder->build($this->graphNodes(['Ann', 'Bob', 'Cas', 'Dirk']), $edges, [], new CacheableMetadata());
+    // Org A and Org B, not the unpublished Org C; Dirk's edge to Org A is
+    // shown, because Org A is a node now.
+    $this->assertSame(['Ann', 'Bob', 'Cas', 'Dirk', 'Org A', 'Org B'], array_column($graph['nodes'], 'label'));
+    $expected = ['Ann > Org A: Member of', 'Bob > Org B: Member of', 'Dirk > Org A: Member of', 'Org B > Dirk: Employs'];
+    $this->assertSame($expected, $this->edgeList($graph));
+    $this->assertSame(['', 'Organisation'], array_column($graph['legend']['nodes'], 'label'));
+
+    // In an ego network, only the targets of the root's edges.
+    $graph = $builder->build($this->graphNodes(['Ann', 'Bob'], 'Ann'), $edges, ['extra_nodes' => 'root'], new CacheableMetadata());
+    $this->assertSame(['Ann', 'Bob', 'Org A'], array_column($graph['nodes'], 'label'));
   }
 
 }

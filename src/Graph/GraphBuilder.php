@@ -40,9 +40,22 @@ class GraphBuilder {
     // Nodes and edges that are not available in the current content
     // language: 'show' them, show them 'fade'd, or 'hide' them.
     'language' => 'show',
-    // Colors per category and per edge type, as lines of "value|color".
+    // Colors of node categories, keyed by color key (GraphNode::$colorKey,
+    // e.g. "node:person" or "taxonomy_term:12").
+    'node_colors' => [],
+    // How edges are colored: 'type', 'group', 'shared_item' or 'none'; see
+    // colorEdges().
+    'edge_color_by' => 'type',
+    // Colors of edge types, groups or shared items, keyed by their key (e.g.
+    // "field:field_knows", "relation_type:12" or "taxonomy_term:5").
+    'edge_color_map' => [],
+    // Older settings: colors by label, as lines of "label|color"; used for
+    // categories without a color by key.
     'colors' => '',
     'edge_colors' => '',
+    // Which targets of "show as node" edges become nodes: those of 'all'
+    // nodes, or only those of 'root' nodes (ego networks).
+    'extra_nodes' => 'all',
     // Edge types shown as shared links: a list of arrays with the keys
     // "edge_type" (Edge::$type), "mode" ('target' links the sources of edges
     // with the same target, 'source' the targets of edges with the same
@@ -94,19 +107,21 @@ class GraphBuilder {
    */
   public function build(array $nodes, array $edges, array $options, CacheableMetadata $cacheability): array {
     $options += self::DEFAULT_OPTIONS;
-    $first = reset($nodes);
-    if (!$first) {
+    // Nodes by graph key ("node:12"): a graph can hold several entity types.
+    $by_key = [];
+    foreach ($nodes as $node) {
+      $by_key[$this->entityKey($node->entity)] = $node;
+    }
+    if (!$by_key) {
       return ['nodes' => [], 'edges' => [], 'legend' => []];
     }
-    $entity_type_id = $first->entity->getEntityTypeId();
-
+    $langcode = $this->languageManager->getCurrentLanguage(LanguageInterface::TYPE_CONTENT)->getId();
     if ($options['language'] !== 'show') {
-      $langcode = $this->languageManager->getCurrentLanguage(LanguageInterface::TYPE_CONTENT)->getId();
       $cacheability->addCacheContexts(['languages:' . LanguageInterface::TYPE_CONTENT]);
-      foreach ($nodes as $id => $node) {
+      foreach ($by_key as $key => $node) {
         if (!$node->root && $this->isLanguageUnavailable($node->entity, $langcode, $cacheability)) {
           if ($options['language'] === 'hide') {
-            unset($nodes[$id]);
+            unset($by_key[$key]);
           }
           else {
             $node->faded = TRUE;
@@ -114,8 +129,9 @@ class GraphBuilder {
         }
       }
     }
+    $by_key += $this->extraNodes($by_key, $edges, $options, $langcode, $cacheability);
 
-    $roots = array_filter($nodes, fn(GraphNode $node) => $node->root);
+    $roots = array_filter($by_key, fn(GraphNode $node) => $node->root);
     $shared_links = array_column($options['shared_links'] ?: [], NULL, 'edge_type');
     $shared_edges = [];
     $graph_edges = [];
@@ -124,28 +140,24 @@ class GraphBuilder {
         $shared_edges[] = $edge;
         continue;
       }
-      if ($edge->sourceEntityType !== $entity_type_id
-        || $edge->targetEntityType !== $entity_type_id
-        || !isset($nodes[$edge->sourceId], $nodes[$edge->targetId])
-        || (string) $edge->sourceId === (string) $edge->targetId
+      $source = $this->key($edge->sourceEntityType, $edge->sourceId);
+      $target = $this->key($edge->targetEntityType, $edge->targetId);
+      if (!isset($by_key[$source], $by_key[$target])
+        || $source === $target
         || ($edge->languageUnavailable && $options['language'] === 'hide')) {
         continue;
       }
-      $source = $edge->sourceId;
-      $target = $edge->targetId;
       $label = $edge->typeLabel;
       // Read edges from the root: "A teacher of root" becomes "root student
       // of A" when the edge has a reverse label.
       if (isset($roots[$target]) && !isset($roots[$source]) && $edge->reverseLabel !== NULL) {
         [$source, $target, $label] = [$target, $source, $edge->reverseLabel];
       }
-      $source = $this->key($entity_type_id, $source);
-      $target = $this->key($entity_type_id, $target);
       $id = $edge->id;
       if (!$options['directed']) {
         $pair = [$source, $target];
         sort($pair);
-        $id = $label . '|' . implode('|', $pair);
+        $id = $edge->type . '|' . $label . '|' . implode('|', $pair);
       }
       $faded = $edge->languageUnavailable && $options['language'] === 'fade';
       // Of duplicate edges, an available one wins.
@@ -159,10 +171,15 @@ class GraphBuilder {
         'type' => $label,
         'label' => $label,
         'faded' => $faded,
+        // Color keys and legend labels of the edge, per coloring mode.
+        '_type_key' => $edge->type,
+        '_type_label' => $edge->typeLabel,
+        '_group_key' => $edge->group ?? $edge->type,
+        '_group_label' => $edge->groupLabel ?? $edge->typeLabel,
       ];
     }
 
-    $graph_edges += $this->sharedLinks($nodes, $shared_edges, $shared_links, $entity_type_id, $options['language'], $cacheability);
+    $graph_edges += $this->sharedLinks($by_key, $shared_edges, $shared_links, $options['language'], $cacheability);
 
     if ($options['hide_isolated']) {
       $connected = [];
@@ -170,68 +187,19 @@ class GraphBuilder {
         $connected[$edge['source']] = TRUE;
         $connected[$edge['target']] = TRUE;
       }
-      $nodes = array_filter($nodes, fn(GraphNode $node) => $node->root || isset($connected[$this->key($entity_type_id, $node->entity->id())]));
+      $by_key = array_filter($by_key, fn(GraphNode $node, string $key) => $node->root || isset($connected[$key]), ARRAY_FILTER_USE_BOTH);
     }
 
-    $graph_nodes = [];
-    $categories = [];
-    $data_colors = [];
-    foreach ($nodes as $id => $node) {
-      $cacheability->addCacheableDependency($node->entity);
-      $data = [
-        'id' => $this->key($entity_type_id, $id),
-        'label' => $node->label,
-        'category' => $node->category,
-        'tooltip' => $node->tooltip,
-        'root' => $node->root,
-        'faded' => $node->faded,
-      ];
-      if ($options['link'] && $node->entity->hasLinkTemplate('canonical')) {
-        $url = $node->entity->toUrl()->toString(TRUE);
-        $cacheability->addCacheableDependency($url);
-        $data['url'] = $url->getGeneratedUrl();
-      }
-      if ($node->color !== NULL && Palette::isColor($node->color)) {
-        $data['color'] = $node->color;
-        $data_colors[$node->category] ??= $node->color;
-      }
-      $categories[$node->category] = ($categories[$node->category] ?? 0) + 1;
-      $graph_nodes[] = $data;
-    }
-
-    // Colors per category: from the data, the configured colors or the
-    // palette, in that order.
-    $category_colors = $data_colors + Palette::assign(array_keys($categories), Palette::parse($options['colors']));
-    foreach ($graph_nodes as &$data) {
-      $data['color'] ??= $category_colors[$data['category']];
-    }
-    unset($data);
-
-    $edge_types = [];
-    foreach ($graph_edges as $edge) {
-      $edge_types[$edge['type']] = ($edge_types[$edge['type']] ?? 0) + 1;
-    }
-    $edge_overrides = Palette::parse($options['edge_colors']);
-    $edge_colors = count($edge_types) === 1 && !$edge_overrides
-      ? [array_key_first($edge_types) => Palette::NEUTRAL]
-      : Palette::assign(array_keys($edge_types), $edge_overrides);
-    foreach ($graph_edges as &$edge) {
-      $edge['color'] = $edge_colors[$edge['type']];
-    }
-    unset($edge);
+    [$graph_nodes, $node_legend] = $this->colorNodes($by_key, $options, $cacheability);
+    [$graph_edges, $edge_legend] = $this->colorEdges($graph_edges, $options);
 
     $legend = [];
     if ($options['legend']) {
-      ksort($categories, SORT_NATURAL | SORT_FLAG_CASE);
-      ksort($edge_types, SORT_NATURAL | SORT_FLAG_CASE);
-      // Without categories, all nodes have one color and need no legend.
-      if (array_keys($categories) !== ['']) {
-        foreach ($categories as $category => $count) {
-          $legend['nodes'][] = ['label' => $category, 'color' => $category_colors[$category], 'count' => $count];
-        }
+      if ($node_legend) {
+        $legend['nodes'] = $node_legend;
       }
-      foreach ($edge_types as $type => $count) {
-        $legend['edges'][] = ['label' => $type, 'color' => $edge_colors[$type], 'count' => $count];
+      if ($edge_legend) {
+        $legend['edges'] = $edge_legend;
       }
     }
 
@@ -243,6 +211,223 @@ class GraphBuilder {
   }
 
   /**
+   * Returns the graph nodes for the missing ends of "show as node" edges.
+   *
+   * The end of an edge with Edge::$otherEndAsNode that is not a node yet,
+   * when its other end is one, is added if the current user may view it: in
+   * the current language, colored by bundle. With the "root" extra_nodes
+   * option (ego networks), only ends of edges of a root are added.
+   *
+   * @param \Drupal\network_views\Graph\GraphNode[] $nodes
+   *   The nodes, keyed by graph key.
+   * @param \Drupal\network_views\EdgeSource\Edge[] $edges
+   *   The edges.
+   * @param array $options
+   *   The options.
+   * @param string $langcode
+   *   The current content language.
+   * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
+   *   Collects the cacheability of the added entities.
+   *
+   * @return \Drupal\network_views\Graph\GraphNode[]
+   *   The extra nodes, keyed by graph key.
+   */
+  protected function extraNodes(array $nodes, array $edges, array $options, string $langcode, CacheableMetadata $cacheability): array {
+    $targets = [];
+    foreach ($edges as $edge) {
+      if (!$edge->otherEndAsNode) {
+        continue;
+      }
+      $source = $this->key($edge->sourceEntityType, $edge->sourceId);
+      $target = $this->key($edge->targetEntityType, $edge->targetId);
+      // The node end, and the missing end.
+      [$known, $type, $id] = match (TRUE) {
+        isset($nodes[$source]) && !isset($nodes[$target]) => [$nodes[$source], $edge->targetEntityType, $edge->targetId],
+        isset($nodes[$target]) && !isset($nodes[$source]) => [$nodes[$target], $edge->sourceEntityType, $edge->sourceId],
+        default => [NULL, NULL, NULL],
+      };
+      if (!$known || ($options['extra_nodes'] === 'root' && !$known->root)) {
+        continue;
+      }
+      $targets[$type][$id] = TRUE;
+    }
+    $extra = [];
+    foreach ($targets as $entity_type_id => $ids) {
+      foreach ($this->entityTypeManager->getStorage($entity_type_id)->loadMultiple(array_keys($ids)) as $entity) {
+        $access = $entity->access('view', NULL, TRUE);
+        $cacheability->addCacheableDependency($access);
+        if (!$access->isAllowed()) {
+          continue;
+        }
+        $faded = FALSE;
+        if ($options['language'] !== 'show' && $this->isLanguageUnavailable($entity, $langcode, $cacheability)) {
+          if ($options['language'] === 'hide') {
+            continue;
+          }
+          $faded = TRUE;
+        }
+        $entity = $this->entityRepository->getTranslationFromContext($entity);
+        $extra[$this->entityKey($entity)] = new GraphNode(
+          entity: $entity,
+          label: (string) $entity->label(),
+          category: $this->bundleLabel($entity),
+          faded: $faded,
+          colorKey: $this->bundleKey($entity),
+        );
+      }
+    }
+    return $extra;
+  }
+
+  /**
+   * Returns the node data for the renderer and the node legend.
+   *
+   * Colors per category, keyed by the category's color key: from the data
+   * (a color field), the configured colors (by key, or by label as in older
+   * settings) or the palette. Palette colors are assigned by key, so they
+   * are the same in every language.
+   *
+   * @param \Drupal\network_views\Graph\GraphNode[] $nodes
+   *   The nodes, keyed by graph key.
+   * @param array $options
+   *   The options.
+   * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
+   *   Collects the cacheability of the nodes.
+   *
+   * @return array
+   *   The node data and the legend items.
+   */
+  protected function colorNodes(array $nodes, array $options, CacheableMetadata $cacheability): array {
+    $graph_nodes = [];
+    $categories = [];
+    $data_colors = [];
+    foreach ($nodes as $key => $node) {
+      $cacheability->addCacheableDependency($node->entity);
+      $color_key = $node->colorKey ?? $node->category;
+      $data = [
+        'id' => $key,
+        'label' => $node->label,
+        'category' => $node->category,
+        'tooltip' => $node->tooltip,
+        'root' => $node->root,
+        'faded' => $node->faded,
+        '_color_key' => $color_key,
+      ];
+      if ($options['link'] && $node->entity->hasLinkTemplate('canonical')) {
+        $url = $node->entity->toUrl()->toString(TRUE);
+        $cacheability->addCacheableDependency($url);
+        $data['url'] = $url->getGeneratedUrl();
+      }
+      if ($node->color !== NULL && Palette::isColor($node->color)) {
+        $data['color'] = $node->color;
+        $data_colors[$color_key] ??= $node->color;
+      }
+      $categories[$color_key] ??= ['label' => $node->category, 'count' => 0];
+      $categories[$color_key]['count']++;
+      $graph_nodes[] = $data;
+    }
+
+    $colors = $data_colors + Palette::assign(array_keys($categories), $this->configuredColors($categories, $options['node_colors'], $options['colors']));
+    foreach ($graph_nodes as &$data) {
+      $data['color'] ??= $colors[$data['_color_key']];
+      unset($data['_color_key']);
+    }
+    unset($data);
+
+    // Without categories, all nodes have one color and need no legend.
+    $legend = [];
+    if (array_keys($categories) !== ['']) {
+      uasort($categories, fn(array $a, array $b) => strnatcasecmp($a['label'], $b['label']));
+      foreach ($categories as $color_key => $category) {
+        $legend[] = ['label' => $category['label'], 'color' => $colors[$color_key], 'count' => $category['count']];
+      }
+    }
+    return [$graph_nodes, $legend];
+  }
+
+  /**
+   * Colors the edges and returns their legend.
+   *
+   * By the edge_color_by option: 'type' (the edge type, e.g. a reference
+   * field or a relation type), 'group' (e.g. a relation content type),
+   * 'shared_item' (shared links by the item they share, grey when they share
+   * several; other edges by type) or 'none' (one color, no legend).
+   *
+   * @param array $graph_edges
+   *   The edge data, keyed by ID.
+   * @param array $options
+   *   The options.
+   *
+   * @return array
+   *   The edge data and the legend items.
+   */
+  protected function colorEdges(array $graph_edges, array $options): array {
+    $mode = $options['edge_color_by'];
+    $categories = [];
+    foreach ($graph_edges as &$edge) {
+      [$key, $label] = match (TRUE) {
+        $mode === 'none' => ['', ''],
+        $mode === 'group' => [$edge['_group_key'], $edge['_group_label']],
+        $mode === 'shared_item' && isset($edge['_shared_items']) => count($edge['_shared_items']) === 1
+          ? [key($edge['_shared_items']), reset($edge['_shared_items'])]
+          : ['_several', (string) $this->t('Several shared items')],
+        default => [$edge['_type_key'], $edge['_type_label']],
+      };
+      $edge['_color_key'] = $key;
+      $categories[$key] ??= ['label' => $label, 'count' => 0];
+      $categories[$key]['count']++;
+    }
+    unset($edge);
+
+    $configured = $this->configuredColors($categories, $options['edge_color_map'], $options['edge_colors']);
+    $colors = Palette::assign(array_keys($categories), ['' => Palette::NEUTRAL, '_several' => Palette::NEUTRAL] + $configured);
+    // A single kind of edge is grey, unless a color is configured for it.
+    if (count($categories) === 1 && !$configured) {
+      $colors = [array_key_first($categories) => Palette::NEUTRAL];
+    }
+    foreach ($graph_edges as &$edge) {
+      $edge['color'] = $colors[$edge['_color_key']];
+      unset($edge['_color_key'], $edge['_type_key'], $edge['_type_label'], $edge['_group_key'], $edge['_group_label'], $edge['_shared_items']);
+    }
+    unset($edge);
+
+    $legend = [];
+    if ($mode !== 'none') {
+      uasort($categories, fn(array $a, array $b) => strnatcasecmp($a['label'], $b['label']));
+      foreach ($categories as $key => $category) {
+        $legend[] = ['label' => $category['label'], 'color' => $colors[$key], 'count' => $category['count']];
+      }
+    }
+    return [$graph_edges, $legend];
+  }
+
+  /**
+   * Returns the configured colors of categories, keyed by color key.
+   *
+   * @param array $categories
+   *   The categories, keyed by color key, each with a "label".
+   * @param array $by_key
+   *   Configured colors keyed by color key.
+   * @param string $by_label
+   *   Configured colors as lines of "label|color", as older settings did;
+   *   used for categories without a color by key.
+   *
+   * @return string[]
+   *   The colors that are valid CSS colors, keyed by color key.
+   */
+  protected function configuredColors(array $categories, array $by_key, string $by_label): array {
+    $labels = Palette::parse($by_label);
+    $colors = [];
+    foreach ($categories as $key => $category) {
+      $color = $by_key[$key] ?? $labels[$category['label']] ?? NULL;
+      if (is_string($color) && $color !== '' && Palette::isColor($color)) {
+        $colors[$key] = $color;
+      }
+    }
+    return $colors;
+  }
+
+  /**
    * Returns the shared links between nodes.
    *
    * Nodes that are the source (or target) of edges of a shared links type
@@ -251,13 +436,11 @@ class GraphBuilder {
    * current user may not view are left out.
    *
    * @param \Drupal\network_views\Graph\GraphNode[] $nodes
-   *   The nodes, keyed by entity ID.
+   *   The nodes, keyed by graph key.
    * @param \Drupal\network_views\EdgeSource\Edge[] $edges
    *   The edges of shared links types.
    * @param array $shared_links
    *   The shared links settings, keyed by edge type.
-   * @param string $entity_type_id
-   *   The entity type of the nodes.
    * @param string $language
    *   The language option: 'show', 'fade' or 'hide'.
    * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
@@ -266,11 +449,12 @@ class GraphBuilder {
    * @return array
    *   Edge data for the renderer, keyed by ID.
    */
-  protected function sharedLinks(array $nodes, array $edges, array $shared_links, string $entity_type_id, string $language, CacheableMetadata $cacheability): array {
+  protected function sharedLinks(array $nodes, array $edges, array $shared_links, string $language, CacheableMetadata $cacheability): array {
     // For each edge type and shared item: its nodes, and whether their edge
     // to it is available in the current language.
     $groups = [];
     $type_labels = [];
+    $group_info = [];
     foreach ($edges as $edge) {
       if ($edge->languageUnavailable && $language === 'hide') {
         continue;
@@ -278,10 +462,12 @@ class GraphBuilder {
       [$member_type, $member, $shared_type, $shared] = $shared_links[$edge->type]['mode'] === 'source'
         ? [$edge->targetEntityType, $edge->targetId, $edge->sourceEntityType, $edge->sourceId]
         : [$edge->sourceEntityType, $edge->sourceId, $edge->targetEntityType, $edge->targetId];
-      if ($member_type !== $entity_type_id || !isset($nodes[$member])) {
+      $member = $this->key($member_type, $member);
+      if (!isset($nodes[$member])) {
         continue;
       }
       $type_labels[$edge->type] ??= $edge->typeLabel;
+      $group_info[$edge->type] ??= [$edge->group ?? $edge->type, $edge->groupLabel ?? $edge->typeLabel];
       $groups[$edge->type][$shared_type][$shared][$member] = !empty($groups[$edge->type][$shared_type][$shared][$member]) || !$edge->languageUnavailable;
     }
 
@@ -310,19 +496,20 @@ class GraphBuilder {
           }
           $shared_label = (string) $this->entityRepository->getTranslationFromContext($shared)->label();
           $members = $members_per_item[$shared_id];
-          $ids = array_keys($members);
-          sort($ids);
-          foreach ($ids as $i => $a) {
-            foreach (array_slice($ids, $i + 1) as $b) {
+          $keys = array_map('strval', array_keys($members));
+          sort($keys, SORT_NATURAL);
+          foreach ($keys as $i => $a) {
+            foreach (array_slice($keys, $i + 1) as $b) {
               $id = "shared:$type:$a:$b";
               $links[$id] ??= [
-                'source' => $this->key($entity_type_id, $a),
-                'target' => $this->key($entity_type_id, $b),
+                'source' => $a,
+                'target' => $b,
                 'label' => $label,
+                'type' => $type,
                 'items' => [],
                 'available' => FALSE,
               ];
-              $links[$id]['items'][] = $shared_label;
+              $links[$id]['items'][$this->key($shared_type, $shared_id)] = $shared_label;
               $links[$id]['available'] = $links[$id]['available'] || ($members[$a] && $members[$b] && !$unavailable);
             }
           }
@@ -332,7 +519,7 @@ class GraphBuilder {
 
     $graph_edges = [];
     foreach ($links as $id => $link) {
-      $items = $link['items'];
+      $items = array_values($link['items']);
       natcasesort($items);
       $named = array_slice($items, 0, static::MAX_TOOLTIP_ITEMS);
       $tooltip = Html::escape($link['label']) . ': ' . Html::escape(implode(', ', $named));
@@ -349,6 +536,13 @@ class GraphBuilder {
         'weight' => count($items),
         'tooltip' => $tooltip,
         'undirected' => TRUE,
+        // Shared links are colored by their own type; by group, as the group
+        // of the edges they are built from; or by the items they share.
+        '_type_key' => 'shared:' . $link['type'],
+        '_type_label' => $link['label'],
+        '_group_key' => 'shared:' . $group_info[$link['type']][0],
+        '_group_label' => (string) $this->t('Shared: @type', ['@type' => $group_info[$link['type']][1]]),
+        '_shared_items' => $link['items'],
       ];
     }
     return $graph_edges;
@@ -435,6 +629,20 @@ class GraphBuilder {
    */
   protected function key(string $entity_type_id, int|string $id): string {
     return $entity_type_id . ':' . $id;
+  }
+
+  /**
+   * Returns the graph ID of an entity object.
+   */
+  public function entityKey(EntityInterface $entity): string {
+    return $this->key($entity->getEntityTypeId(), $entity->id());
+  }
+
+  /**
+   * Returns the color key of the bundle of an entity, e.g. "node:person".
+   */
+  public function bundleKey(EntityInterface $entity): string {
+    return $entity->getEntityTypeId() . ':' . $entity->bundle();
   }
 
 }

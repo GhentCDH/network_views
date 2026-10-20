@@ -159,7 +159,7 @@ class NetworkRendererTest extends WebDriverTestBase {
     $bob = $this->key('Bob');
     $cas = $this->key('Cas');
     $dirk = $this->key('Dirk');
-    $shared = 'shared:field:field_member:' . $this->nodes['Ann']->id() . ':' . $this->nodes['Cas']->id();
+    $shared = 'shared:field:field_member:' . $ann . ':' . $cas;
     $knows = 'field_knows:' . $this->nodes['Ann']->id() . ':' . $this->nodes['Bob']->id();
     $this->assertSame('triangle', $this->evaluateGraph("cy.getElementById('$knows').style('target-arrow-shape')"));
     $this->assertSame('none', $this->evaluateGraph("cy.getElementById('$shared').style('target-arrow-shape')"));

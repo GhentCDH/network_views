@@ -17,12 +17,21 @@ views.style.network:
     color_value_field:
       type: string
       label: 'Color from field'
+    node_colors:
+      type: network_views_colors
+      label: 'Colors of node categories'
+    edge_color_by:
+      type: string
+      label: 'Color edges by'
+    edge_color_map:
+      type: network_views_colors
+      label: 'Colors of edge types, groups or shared items'
     colors:
       type: string
-      label: 'Colors per value'
+      label: 'Colors per label (older settings)'
     edge_colors:
       type: string
-      label: 'Colors per edge type'
+      label: 'Colors per edge label (older settings)'
     edge_sources:
       type: sequence
       label: 'Edge sources'
@@ -57,6 +66,13 @@ views.style.network:
     legend:
       type: boolean
       label: 'Show a legend'
+
+network_views_colors:
+  type: sequence
+  label: 'Colors keyed by machine name or ID'
+  sequence:
+    type: string
+    label: 'Color'
 
 network_views_shared_links:
   type: sequence
@@ -110,6 +126,12 @@ network_views.edge_source.entity_reference_fields:
         fields:
           type: sequence
           label: 'Fields'
+          sequence:
+            type: string
+            label: 'Field name'
+        node_fields:
+          type: sequence
+          label: 'Fields whose referenced items are shown as nodes'
           sequence:
             type: string
             label: 'Field name'

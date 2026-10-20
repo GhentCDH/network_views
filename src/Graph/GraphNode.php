@@ -29,6 +29,11 @@ final class GraphNode {
    *   is shown larger, edges are read from it, and it is never hidden.
    * @param bool $faded
    *   Whether to show the node faded.
+   * @param string|null $colorKey
+   *   A stable key of the color category, e.g. "node:person" for a bundle or
+   *   "taxonomy_term:12" for a referenced term: colors are configured and
+   *   assigned by this key, the same in every language. NULL to use the
+   *   category label (as older settings did).
    */
   public function __construct(
     public readonly EntityInterface $entity,
@@ -38,6 +43,7 @@ final class GraphNode {
     public readonly string $tooltip = '',
     public readonly bool $root = FALSE,
     public bool $faded = FALSE,
+    public readonly ?string $colorKey = NULL,
   ) {}
 
 }

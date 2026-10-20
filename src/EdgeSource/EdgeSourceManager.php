@@ -224,6 +224,32 @@ class EdgeSourceManager extends DefaultPluginManager {
   }
 
   /**
+   * Returns the edge types and groups of the applicable edge sources.
+   *
+   * @param string $entity_type_id
+   *   The entity type of the graph nodes.
+   *
+   * @return array
+   *   Two arrays of labels: the edge types and the groups, keyed by key. An
+   *   edge source without groups has its edge types as groups.
+   */
+  public function getEdgeTypesAndGroups(string $entity_type_id): array {
+    $types = [];
+    $groups = [];
+    foreach (array_keys($this->getDefinitions()) as $plugin_id) {
+      $edge_source = $this->createInstance($plugin_id);
+      assert($edge_source instanceof EdgeSourceInterface);
+      if (!$edge_source->isApplicable($entity_type_id)) {
+        continue;
+      }
+      $source_types = $edge_source->getEdgeTypes($entity_type_id);
+      $types += $source_types;
+      $groups += $edge_source->getEdgeGroups($entity_type_id) ?: $source_types;
+    }
+    return [$types, $groups];
+  }
+
+  /**
    * Builds the form to show edge types as shared links.
    *
    * Shared links connect the items that share a neighbour, e.g. initiatives
@@ -300,7 +326,8 @@ class EdgeSourceManager extends DefaultPluginManager {
             '#title_display' => 'invisible',
             '#description' => $this->t('items; empty for no limit'),
             '#min' => 2,
-            '#default_value' => $config['max'] ?? NULL,
+            // 0 is stored for no limit, shown as an empty field.
+            '#default_value' => ($config['max'] ?? 0) ?: NULL,
             '#size' => 4,
           ],
         ];
