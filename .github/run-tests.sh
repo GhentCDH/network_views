@@ -33,6 +33,8 @@ composer require --no-interaction -W \
   "drupal/core-composer-scaffold:$DRUPAL_CORE" \
   "drupal/network_views:*@dev"
 composer require --no-interaction -W --dev "drupal/core-dev:$DRUPAL_CORE"
+# Search API, for the tests of network views of a search index.
+composer require --no-interaction --dev "drupal/search_api:^1.35"
 
 MODULE="$BUILD_DIR/web/modules/contrib/network_views"
 

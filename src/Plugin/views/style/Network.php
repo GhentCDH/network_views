@@ -18,6 +18,7 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\views\Attribute\ViewsStyle;
 use Drupal\views\Plugin\views\field\EntityField;
 use Drupal\views\Plugin\views\style\StylePluginBase;
+use Drupal\views\Views;
 use Drupal\network_views\EdgeSource\EdgeSourceManager;
 use Drupal\network_views\Form\ColorSettings;
 use Drupal\network_views\Graph\GraphBuilder;
@@ -762,7 +763,21 @@ class Network extends StylePluginBase {
    */
   protected function baseEntityTypeId(): ?string {
     $entity_type = $this->view->getBaseEntityType();
-    return $entity_type ? $entity_type->id() : NULL;
+    if ($entity_type) {
+      return $entity_type->id();
+    }
+    // A Search API index whose datasources are all of one entity type, e.g.
+    // content: its result rows carry their entities.
+    $index_id = Views::viewsData()->get($this->view->storage->get('base_table'))['table']['base']['index'] ?? NULL;
+    if ($index_id && $this->entityTypeManager->hasDefinition('search_api_index')) {
+      /** @var \Drupal\search_api\IndexInterface|null $index */
+      $index = $this->entityTypeManager->getStorage('search_api_index')->load($index_id);
+      $types = array_unique(array_map(fn($datasource) => $datasource->getEntityTypeId(), $index ? $index->getDatasources() : []));
+      if (count($types) === 1 && reset($types) !== NULL) {
+        return reset($types);
+      }
+    }
+    return NULL;
   }
 
 }

@@ -34,7 +34,7 @@ drush en network_views
 
 ## Usage
 
-1. Create a view of content (or another entity type) with the **Network** format.
+1. Create a view of content (or another entity type) with the **Network** format. A view of a [Search API](https://www.drupal.org/project/search_api) index works too, when the index holds one entity type (e.g. only content); its filters, facets and full-text search then decide the nodes.
 2. Add the fields to use as label, tooltip or color. Fields that are only used in the tooltip can be excluded from display.
 3. Under **Format › Settings › Edges**, enable an edge source.
 4. Set the pager to **Display all items**: with a limited pager, the graph only contains one page of the result.
@@ -118,7 +118,7 @@ The template is `network-views.html.twig`. The graph data is a JSON object in th
 
 ## Development
 
-Unit, kernel, functional and browser (FunctionalJavascript) tests are in `tests/`. The browser tests need a WebDriver (e.g. chromedriver) and internet access for Cytoscape.js; `.github/run-tests.sh` runs them when `MINK_DRIVER_ARGS_WEBDRIVER` is set. `tests/src/Traits/CytoscapeTrait.php` reads the rendered graph from its Cytoscape instance and dispatches mouse events on nodes and edges, also for the tests of other modules.
+Unit, kernel, functional and browser (FunctionalJavascript) tests are in `tests/`; the Search API test needs `drupal/search_api` (a dev requirement). The browser tests need a WebDriver (e.g. chromedriver) and internet access for Cytoscape.js; `.github/run-tests.sh` runs them when `MINK_DRIVER_ARGS_WEBDRIVER` is set. `tests/src/Traits/CytoscapeTrait.php` reads the rendered graph from its Cytoscape instance and dispatches mouse events on nodes and edges, also for the tests of other modules.
 
 ```bash
 SIMPLETEST_DB=sqlite://localhost//tmp/test.sqlite SIMPLETEST_BASE_URL=http://127.0.0.1:8080 \

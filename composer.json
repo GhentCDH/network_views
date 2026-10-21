@@ -3,9 +3,22 @@
   "description": "Views style that displays the result rows as a network graph (Cytoscape.js).",
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
-  "keywords": ["drupal", "views", "network", "graph", "cytoscape", "visualization"],
+  "keywords": [
+    "drupal",
+    "views",
+    "network",
+    "graph",
+    "cytoscape",
+    "visualization"
+  ],
   "require": {
     "drupal/core": "^10.3 || ^11"
+  },
+  "require-dev": {
+    "drupal/search_api": "^1.35"
+  },
+  "suggest": {
+    "drupal/search_api": "Network views of a Search API index (one entity type per index)."
   },
   "extra": {
     "branch-alias": {
