@@ -2,7 +2,7 @@
 
 All notable changes to `network_views`.
 
-## Unreleased
+## 1.0.0-beta2 - 2026-10-21
 
 - A click on a node dispatches a cancelable `networkviews:nodeclick` event, so a theme can show the entity elsewhere (e.g. in a side panel) instead of opening its page.
 
