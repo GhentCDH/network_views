@@ -2,7 +2,7 @@
 
 All notable changes to `network_views`.
 
-## Unreleased
+## 1.0.0-beta1 - 2026-10-21
 
 First release. The network Views style, the graph builder for other modules (such as `cytoscape_egonetwork`) and edge sources:
 
