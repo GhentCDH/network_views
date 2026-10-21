@@ -75,6 +75,19 @@ Each pair of items is linked once, with no direction. The link is thicker the mo
 
 An item shared by many items links all of them with each other: 100 initiatives of one organisation give 4,950 links. Set **Leave out shared items with more than** a number of items to skip such items.
 
+### Ego networks
+
+An ego network (a node, its neighbours and the connections between them, e.g. on the node's page) is a network view with the contextual filter **Network neighbourhood**:
+
+1. Create a view of the content (or other entities) with the **Network** format and its edge sources, and a **Block** display.
+2. Add the contextual filter **Network neighbourhood** (in the category of the base table). As default value, choose **Content ID from URL**; when the value is not available, **Hide view**. Choose the **depth**: the neighbours (1 step), or also their neighbours (2 steps). Neighbours are found with the view's edge sources and shared links; only entities the visitor may view are followed.
+3. In the network format, check **Hide nodes without connections**. The node of the contextual filter is the root: shown as a star, never hidden, with edges read from it (mirror labels such as "Student of"); items it refers to with "show as node" are added, those of the neighbours are not.
+4. Place the block on the node pages (block layout or Layout Builder).
+
+The view's filters apply to the neighbours too (e.g. only published persons, only certain content types).
+
+To show the ego network only on nodes where editors want it, give the content type a checkbox field and use a block visibility condition on it, e.g. with [Node Boolean](https://www.drupal.org/project/node_boolean) or [Entity Field Condition](https://www.drupal.org/project/entity_field_condition).
+
 ## Edge sources
 
 | Plugin | Module | Edges |

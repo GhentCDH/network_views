@@ -23,6 +23,7 @@ use Drupal\network_views\Form\ColorSettings;
 use Drupal\network_views\Graph\GraphBuilder;
 use Drupal\network_views\Graph\GraphNode;
 use Drupal\network_views\Palette;
+use Drupal\network_views\Plugin\views\argument\NetworkNeighbourhood;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -549,6 +550,14 @@ class Network extends StylePluginBase {
       return [];
     }
 
+    // The entity of a "Network neighbourhood" contextual filter is the root.
+    $root_id = NULL;
+    foreach ($this->view->argument as $argument) {
+      if ($argument instanceof NetworkNeighbourhood && ($root = $argument->rootEntity())) {
+        $root_id = (string) $root->id();
+      }
+    }
+
     // One graph node per entity; relationships can repeat an entity.
     $nodes = [];
     foreach ($this->view->result as $index => $row) {
@@ -568,6 +577,7 @@ class Network extends StylePluginBase {
         category: $category,
         color: $color !== '' ? $color : NULL,
         tooltip: $this->tooltip($index),
+        root: (string) $entity->id() === $root_id,
         colorKey: $color_key,
       );
     }
@@ -578,8 +588,10 @@ class Network extends StylePluginBase {
     $edges = $this->options['shared_links']
       ? $this->edgeSourceManager->getAllEdgesOf($this->options['edge_sources'], $entities, $cacheability)
       : $this->edgeSourceManager->getEdges($this->options['edge_sources'], $entities, $cacheability);
-    $graph = $this->graphBuilder->build($nodes, $edges, $this->options, $cacheability);
-    return $this->graphBuilder->toRenderArray($graph, $this->options, $cacheability);
+    // In an ego network, only the items of the root are shown as extra nodes.
+    $options = $this->options + ['extra_nodes' => $root_id !== NULL ? 'root' : 'all'];
+    $graph = $this->graphBuilder->build($nodes, $edges, $options, $cacheability);
+    return $this->graphBuilder->toRenderArray($graph, $options, $cacheability);
   }
 
   /**

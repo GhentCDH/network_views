@@ -5,6 +5,8 @@
  * Hooks for the network_views module.
  */
 
+use Drupal\Core\Entity\ContentEntityTypeInterface;
+
 /**
  * Implements hook_theme().
  */
@@ -18,4 +20,31 @@ function network_views_theme(): array {
       ],
     ],
   ];
+}
+
+/**
+ * Implements hook_views_data_alter().
+ *
+ * Adds the "Network neighbourhood" contextual filter to the base tables of
+ * content entity types.
+ */
+function network_views_views_data_alter(array &$data): void {
+  foreach (\Drupal::entityTypeManager()->getDefinitions() as $entity_type) {
+    if (!$entity_type instanceof ContentEntityTypeInterface || !$entity_type->hasKey('id')) {
+      continue;
+    }
+    $table = $entity_type->getDataTable() ?: $entity_type->getBaseTable();
+    if (!$table || !isset($data[$table]['table']['base'])) {
+      continue;
+    }
+    $data[$table]['network_neighbourhood'] = [
+      'title' => t('Network neighbourhood'),
+      'help' => t('The @type and its neighbours in the network of the view (its ego network), e.g. of the @type in the URL.', ['@type' => $entity_type->getSingularLabel()]),
+      'argument' => [
+        'id' => 'network_neighbourhood',
+        'field' => $entity_type->getKey('id'),
+        'entity_type' => $entity_type->id(),
+      ],
+    ];
+  }
 }

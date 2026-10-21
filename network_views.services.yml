@@ -9,3 +9,8 @@ services:
       - '@entity_type.bundle.info'
       - '@entity_type.manager'
       - '@entity.repository'
+  network_views.neighbourhood:
+    class: Drupal\network_views\Graph\Neighbourhood
+    arguments:
+      - '@plugin.manager.network_views.edge_source'
+      - '@entity_type.manager'

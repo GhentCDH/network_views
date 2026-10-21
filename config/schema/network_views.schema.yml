@@ -135,3 +135,11 @@ network_views.edge_source.entity_reference_fields:
           sequence:
             type: string
             label: 'Field name'
+
+views.argument.network_neighbourhood:
+  type: views_argument
+  label: 'Network neighbourhood'
+  mapping:
+    depth:
+      type: integer
+      label: 'Depth: the number of steps from the entity'
