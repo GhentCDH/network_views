@@ -66,6 +66,15 @@ views.style.network:
     legend:
       type: boolean
       label: 'Show a legend'
+    root_shape:
+      type: string
+      label: 'Shape of the root'
+    root_size:
+      type: float
+      label: 'Size of the root, as a factor of the size of other nodes'
+    root_color:
+      type: string
+      label: 'Color of the root'
 
 network_views_colors:
   type: sequence

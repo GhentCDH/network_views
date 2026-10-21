@@ -81,7 +81,7 @@ An ego network (a node, its neighbours and the connections between them, e.g. on
 
 1. Create a view of the content (or other entities) with the **Network** format and its edge sources, and a **Block** display.
 2. Add the contextual filter **Network neighbourhood** (in the category of the base table). As default value, choose **Content ID from URL**; when the value is not available, **Hide view**. Choose the **depth**: the neighbours (1 step), or also their neighbours (2 steps). Neighbours are found with the view's edge sources and shared links; only entities the visitor may view are followed.
-3. In the network format, check **Hide nodes without connections**. The node of the contextual filter is the root: shown as a star, never hidden, with edges read from it (mirror labels such as "Student of"); items it refers to with "show as node" are added, those of the neighbours are not.
+3. In the network format, check **Hide nodes without connections**. The node of the contextual filter is the root: never hidden, with edges read from it (mirror labels such as "Student of"); items it refers to with "show as node" are added, those of the neighbours are not. Under **Root**, choose its shape (default: a star), its size (a factor of the other nodes' size) and optionally its own color.
 4. Place the block on the node pages (block layout or Layout Builder).
 
 The view's filters apply to the neighbours too (e.g. only published persons, only certain content types).

@@ -129,6 +129,9 @@ class Network extends StylePluginBase {
     $options['layout'] = ['default' => 'cose'];
     $options['height'] = ['default' => '600px'];
     $options['legend'] = ['default' => TRUE];
+    $options['root_shape'] = ['default' => 'star'];
+    $options['root_size'] = ['default' => 1.6];
+    $options['root_color'] = ['default' => ''];
     return $options;
   }
 
@@ -296,6 +299,47 @@ class Network extends StylePluginBase {
       ];
     }
 
+    if ($this->hasNeighbourhoodArgument()) {
+      $form['root'] = [
+        '#type' => 'details',
+        '#title' => $this->t('Root'),
+        '#description' => $this->t('The entity of the "Network neighbourhood" contextual filter.'),
+        '#open' => TRUE,
+      ];
+      $form['root_shape'] = [
+        '#type' => 'select',
+        '#title' => $this->t('Shape'),
+        '#options' => [
+          'star' => $this->t('Star'),
+          'diamond' => $this->t('Diamond'),
+          'triangle' => $this->t('Triangle'),
+          'hexagon' => $this->t('Hexagon'),
+          'ellipse' => $this->t('Circle'),
+        ],
+        '#default_value' => $this->options['root_shape'],
+        '#fieldset' => 'root',
+      ];
+      $form['root_size'] = [
+        '#type' => 'number',
+        '#title' => $this->t('Size'),
+        '#description' => $this->t('A factor of the size of the other nodes.'),
+        '#min' => 1,
+        '#max' => 4,
+        '#step' => 0.1,
+        '#default_value' => $this->options['root_size'],
+        '#fieldset' => 'root',
+      ];
+      $form['root_color'] = [
+        '#type' => 'textfield',
+        '#title' => $this->t('Color'),
+        '#description' => $this->t('Optional, e.g. <code>#e15759</code>. Empty for the color of its category.'),
+        '#default_value' => $this->options['root_color'],
+        '#size' => 9,
+        '#element_validate' => [[ColorSettings::class, 'validateColor']],
+        '#fieldset' => 'root',
+      ];
+    }
+
     $form['display'] = [
       '#type' => 'details',
       '#title' => $this->t('Display'),
@@ -381,6 +425,18 @@ class Network extends StylePluginBase {
       }
     }
     return NULL;
+  }
+
+  /**
+   * Whether the display has a "Network neighbourhood" contextual filter.
+   */
+  protected function hasNeighbourhoodArgument(): bool {
+    foreach ($this->displayHandler->getHandlers('argument') as $argument) {
+      if ($argument instanceof NetworkNeighbourhood) {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
   /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\network_views\Kernel;
 
+use Drupal\Core\Form\FormState;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
@@ -12,6 +13,7 @@ use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
 use Drupal\Tests\network_views\Traits\NetworkViewTrait;
 use Drupal\Tests\user\Traits\UserCreationTrait;
+use Drupal\views\Entity\View;
 use Drupal\views\Views;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -224,6 +226,47 @@ class NetworkNeighbourhoodTest extends KernelTestBase {
     $data = $this->container->get('views.views_data');
     $this->assertSame('network_neighbourhood', $data->get('node_field_data')['network_neighbourhood']['argument']['id']);
     $this->assertSame('tid', $data->get('taxonomy_term_field_data')['network_neighbourhood']['argument']['field']);
+  }
+
+  /**
+   * The shape, size and color of the root can be configured.
+   */
+  public function testRootOptions(): void {
+    $this->createEgoView(['root_shape' => 'diamond', 'root_size' => 2.5, 'root_color' => '#123456']);
+    $graph = $this->egoGraph('Ann');
+    $this->assertSame('diamond', $graph['settings']['rootShape']);
+    $this->assertEquals(2.5, $graph['settings']['rootSize']);
+    $colors = array_column($graph['nodes'], 'color', 'label');
+    $this->assertSame('#123456', $colors['Ann']);
+    $this->assertNotSame('#123456', $colors['Bob']);
+
+    // The defaults: a star 1.6 times as large, in the color of its category.
+    View::load('test_network')->delete();
+    $this->createEgoView();
+    $graph = $this->egoGraph('Ann');
+    $this->assertSame('star', $graph['settings']['rootShape']);
+    $this->assertEquals(1.6, $graph['settings']['rootSize']);
+    $colors = array_column($graph['nodes'], 'color', 'label');
+    $this->assertSame($colors['Bob'], $colors['Ann']);
+
+    // The settings form offers them only with the contextual filter.
+    $form = $this->styleOptionsForm();
+    $this->assertArrayHasKey('root_shape', $form);
+    View::load('test_network')->delete();
+    $this->createNetworkView([], ['person']);
+    $this->assertArrayNotHasKey('root_shape', $this->styleOptionsForm());
+  }
+
+  /**
+   * Builds the options form of the network style of the test view.
+   */
+  protected function styleOptionsForm(): array {
+    $view = Views::getView('test_network');
+    $view->setDisplay('default');
+    $view->initStyle();
+    $form = [];
+    $view->style_plugin->buildOptionsForm($form, new FormState());
+    return $form;
   }
 
 }

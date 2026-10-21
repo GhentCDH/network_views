@@ -91,9 +91,9 @@
         // The root of an ego network.
         selector: 'node[?root]',
         style: {
-          shape: 'star',
-          width: (node) => 1.6 * size(node),
-          height: (node) => 1.6 * size(node),
+          shape: settings.rootShape || 'star',
+          width: (node) => (settings.rootSize || 1.6) * size(node),
+          height: (node) => (settings.rootSize || 1.6) * size(node),
           'font-weight': 'bold',
         },
       },

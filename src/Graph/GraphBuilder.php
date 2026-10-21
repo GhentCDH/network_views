@@ -71,7 +71,17 @@ class GraphBuilder {
     'size' => 'degree',
     'link' => TRUE,
     'height' => '600px',
+    // The root of an ego network: its shape, its size as a factor of the
+    // size of other nodes, and its color (empty: the color of its category).
+    'root_shape' => 'star',
+    'root_size' => 1.6,
+    'root_color' => '',
   ];
+
+  /**
+   * The shapes a root can have.
+   */
+  public const ROOT_SHAPES = ['star', 'diamond', 'triangle', 'hexagon', 'ellipse'];
 
   /**
    * The maximum number of shared items named in the tooltip of a link.
@@ -328,8 +338,12 @@ class GraphBuilder {
     }
 
     $colors = $data_colors + Palette::assign(array_keys($categories), $this->configuredColors($categories, $options['node_colors'], $options['colors']));
+    $root_color = is_string($options['root_color']) && Palette::isColor($options['root_color']) ? $options['root_color'] : NULL;
     foreach ($graph_nodes as &$data) {
       $data['color'] ??= $colors[$data['_color_key']];
+      if ($data['root'] && $root_color) {
+        $data['color'] = $root_color;
+      }
       unset($data['_color_key']);
     }
     unset($data);
@@ -569,6 +583,8 @@ class GraphBuilder {
         'edgeLabels' => (bool) $options['edge_labels'],
         'size' => $options['size'],
         'link' => (bool) $options['link'],
+        'rootShape' => in_array($options['root_shape'], static::ROOT_SHAPES, TRUE) ? $options['root_shape'] : 'star',
+        'rootSize' => max(1.0, min(4.0, (float) $options['root_size'])),
       ],
     ];
     $build = [
