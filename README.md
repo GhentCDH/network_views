@@ -37,7 +37,7 @@ drush en network_views
 1. Create a view of content (or another entity type) with the **Network** format. A view of a [Search API](https://www.drupal.org/project/search_api) index works too, when the index holds one entity type (e.g. only content); its filters, facets and full-text search then decide the nodes.
 2. Add the fields to use as label, tooltip or color. Fields that are only used in the tooltip can be excluded from display.
 3. Under **Format › Settings › Edges**, enable an edge source.
-4. Set the pager to **Display all items**: with a limited pager, the graph only contains one page of the result.
+4. Set the pager to **Display all items**: with a limited pager, the graph only contains one page of the result. A **Result summary** header (`@total`) then counts the nodes that are shown.
 
 ### Settings
 

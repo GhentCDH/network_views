@@ -664,6 +664,15 @@ class Network extends StylePluginBase {
     // In an ego network, only the items of the root are shown as extra nodes.
     $options = $this->options + ['extra_nodes' => $root_id !== NULL ? 'root' : 'all'];
     $graph = $this->graphBuilder->build($nodes, $edges, $options, $cacheability);
+
+    // The view's result count (e.g. in a "Global: Result summary" header,
+    // rendered after the style) counts the rows that are shown: not those
+    // hidden without connections, in another language or without access.
+    // Only when all rows are loaded: with a pager, it counts all pages.
+    if (count($this->view->result) >= (int) $this->view->total_rows) {
+      $shown = array_flip(array_column($graph['nodes'], 'id'));
+      $this->view->total_rows = count(array_filter($nodes, fn(GraphNode $node) => isset($shown[$this->graphBuilder->entityKey($node->entity)])));
+    }
     return $this->graphBuilder->toRenderArray($graph, $options, $cacheability);
   }
 

@@ -13,4 +13,5 @@ First release. The network Views style, the graph builder for other modules (suc
 - Access per translation: an item whose original is unpublished but that has a published translation is a node (with the label of a translation the visitor may view, faded or hidden in other languages by the language setting); the label of a translation the visitor may not view is never shown.
 - A network view depends on the modules of its edge sources: uninstalling such a module (e.g. `relationship_nodes_networks`) lists and removes the view, instead of leaving a network without those edges.
 - Views of a Search API index whose datasources are of one entity type (e.g. content) can be networks too.
+- The view's result count (e.g. a "Result summary" header) counts the nodes that are shown, not those hidden without connections, in another language or without access (when all rows are loaded, without a pager).
 - Colors keyed by machine name and ID, the same in every language: nodes by bundle, by the item a reference field refers to, or from a color field; edges by type, group or shared item. Older `label|color` lines keep working as a fallback.

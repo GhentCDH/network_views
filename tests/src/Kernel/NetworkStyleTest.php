@@ -143,6 +143,28 @@ class NetworkStyleTest extends KernelTestBase {
   }
 
   /**
+   * The view's result count leaves out the hidden isolated nodes.
+   */
+  public function testIsolatedNotCounted(): void {
+    $view = $this->createNetworkView($this->options(['hide_isolated' => TRUE]), ['person']);
+    $display = &$view->getDisplay('default');
+    $display['display_options']['header']['result'] = [
+      'id' => 'result',
+      'table' => 'views',
+      'field' => 'result',
+      'plugin_id' => 'result',
+      'content' => '@total persons',
+    ];
+    $view->save();
+    $executable = Views::getView('test_network');
+    $build = $executable->preview('default');
+    $html = (string) $this->container->get('renderer')->renderInIsolation($build);
+    // Four persons; Dirk has no connections.
+    $this->assertCount(4, $executable->result);
+    $this->assertStringContainsString('3 persons', $html);
+  }
+
+  /**
    * No edge source means no edges, and the style still renders.
    */
   public function testNoEdgeSource(): void {
