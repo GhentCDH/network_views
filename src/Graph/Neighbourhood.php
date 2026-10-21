@@ -17,13 +17,15 @@ use Drupal\network_views\EdgeSource\EdgeSourceManager;
  * the configured edge sources, and, for edge types shown as shared links,
  * the entities that share an item with it (e.g. the other initiatives of
  * its organiser). With a depth of 2, the neighbours of the neighbours too.
- * Only entities the current user may view are followed.
+ * Only entities the current user may view are followed: in one of their
+ * translations, as translations can be published separately.
  */
 class Neighbourhood {
 
   public function __construct(
     protected EdgeSourceManager $edgeSourceManager,
     protected EntityTypeManagerInterface $entityTypeManager,
+    protected GraphBuilder $graphBuilder,
   ) {}
 
   /**
@@ -118,7 +120,7 @@ class Neighbourhood {
   }
 
   /**
-   * Returns the entities the current user may view.
+   * Returns the entities the current user may view in one of their languages.
    *
    * @param \Drupal\Core\Entity\EntityInterface[] $entities
    *   The entities, keyed by ID.
@@ -129,11 +131,7 @@ class Neighbourhood {
    *   The viewable entities, keyed by ID.
    */
   protected function viewable(array $entities, CacheableMetadata $cacheability): array {
-    return array_filter($entities, function (EntityInterface $entity) use ($cacheability) {
-      $access = $entity->access('view', NULL, TRUE);
-      $cacheability->addCacheableDependency($access);
-      return $access->isAllowed();
-    });
+    return array_filter($entities, fn(EntityInterface $entity) => $this->graphBuilder->viewableTranslation($entity, $cacheability) !== NULL);
   }
 
 }

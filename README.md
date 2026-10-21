@@ -84,9 +84,9 @@ An ego network (a node, its neighbours and the connections between them, e.g. on
 3. In the network format, check **Hide nodes without connections**. The node of the contextual filter is the root: never hidden, with edges read from it (mirror labels such as "Student of"); items it refers to with "show as node" are added, those of the neighbours are not. Under **Root**, choose its shape (default: a star), its size (a factor of the other nodes' size) and optionally its own color.
 4. Place the block on the node pages (block layout or Layout Builder).
 
-The view's filters apply to the neighbours too (e.g. only published persons, only certain content types).
+The view's filters apply to the neighbours too (e.g. only certain content types). A **Published** filter is not needed: the root and the neighbours are access checked, so visitors only see what they may view, and editors who may view unpublished content see it too. An item counts when the visitor may view one of its translations (translations can be published separately); with the language setting **fade** or **hide**, one that is not available in the current language is faded or hidden, and shown with the label of a translation the visitor may view. On a multilingual site, add the filter **Default translation = True**, so that each item is one row.
 
-To show the ego network only on nodes where editors want it, give the content type a checkbox field and use a block visibility condition on it, e.g. with [Node Boolean](https://www.drupal.org/project/node_boolean) or [Entity Field Condition](https://www.drupal.org/project/entity_field_condition).
+To show the ego network only on nodes where editors want it, give the content type a checkbox field and use a block visibility condition on it, e.g. with [Node Boolean](https://www.drupal.org/project/node_boolean) or [Entity Field Condition](https://www.drupal.org/project/entity_field_condition). Or embed the view in the node template, e.g. with [Twig Tweak](https://www.drupal.org/project/twig_tweak): `{% if node.field_show_network.value %}{{ drupal_view('ego_network', 'embed_1', node.id) }}{% endif %}` (an **Embed** display).
 
 ## Edge sources
 

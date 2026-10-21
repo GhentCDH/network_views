@@ -9,6 +9,7 @@ use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\network_views\Graph\GraphBuilder;
 use Drupal\network_views\Graph\Neighbourhood;
 use Drupal\views\Attribute\ViewsArgument;
 use Drupal\views\Plugin\views\argument\ArgumentPluginBase;
@@ -37,6 +38,11 @@ class NetworkNeighbourhood extends ArgumentPluginBase {
   protected EntityTypeManagerInterface $entityTypeManager;
 
   /**
+   * The graph builder.
+   */
+  protected GraphBuilder $graphBuilder;
+
+  /**
    * The cacheability of the neighbourhood of the last query.
    */
   protected ?CacheableMetadata $neighbourhoodCacheability = NULL;
@@ -48,6 +54,7 @@ class NetworkNeighbourhood extends ArgumentPluginBase {
     $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
     $instance->neighbourhood = $container->get('network_views.neighbourhood');
     $instance->entityTypeManager = $container->get('entity_type.manager');
+    $instance->graphBuilder = $container->get('network_views.graph_builder');
     return $instance;
   }
 
@@ -110,7 +117,7 @@ class NetworkNeighbourhood extends ArgumentPluginBase {
   }
 
   /**
-   * Returns the entity of the argument, if the user may view it.
+   * Returns the entity of the argument in a language the user may view it.
    */
   public function rootEntity(): ?EntityInterface {
     $entity_type_id = $this->getEntityType();
@@ -118,7 +125,9 @@ class NetworkNeighbourhood extends ArgumentPluginBase {
       return NULL;
     }
     $entity = $this->entityTypeManager->getStorage($entity_type_id)->load($this->argument);
-    return $entity && $entity->access('view') ? $entity : NULL;
+    // A translation the user may view: translations can be published
+    // separately.
+    return $entity ? $this->graphBuilder->viewableTranslation($entity, new CacheableMetadata()) : NULL;
   }
 
   /**

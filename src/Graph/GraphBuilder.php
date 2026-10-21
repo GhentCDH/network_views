@@ -126,6 +126,30 @@ class GraphBuilder {
       return ['nodes' => [], 'edges' => [], 'legend' => []];
     }
     $langcode = $this->languageManager->getCurrentLanguage(LanguageInterface::TYPE_CONTENT)->getId();
+    foreach ($by_key as $key => $node) {
+      $access = $node->entity->access('view', NULL, TRUE);
+      $cacheability->addCacheableDependency($access);
+      if ($access->isAllowed()) {
+        continue;
+      }
+      // The user may not view this translation (e.g. it is unpublished): the
+      // label of one the user may view instead, and no tooltip of this one.
+      $viewable = $this->viewableTranslation($node->entity, $cacheability, $langcode);
+      if (!$viewable) {
+        unset($by_key[$key]);
+      }
+      else {
+        $by_key[$key] = new GraphNode(
+          entity: $viewable,
+          label: (string) $viewable->label(),
+          category: $node->category,
+          color: $node->color,
+          root: $node->root,
+          faded: $node->faded,
+          colorKey: $node->colorKey,
+        );
+      }
+    }
     if ($options['language'] !== 'show') {
       $cacheability->addCacheContexts(['languages:' . LanguageInterface::TYPE_CONTENT]);
       foreach ($by_key as $key => $node) {
@@ -224,9 +248,10 @@ class GraphBuilder {
    * Returns the graph nodes for the missing ends of "show as node" edges.
    *
    * The end of an edge with Edge::$otherEndAsNode that is not a node yet,
-   * when its other end is one, is added if the current user may view it: in
-   * the current language, colored by bundle. With the "root" extra_nodes
-   * option (ego networks), only ends of edges of a root are added.
+   * when its other end is one, is added if the current user may view one of
+   * its translations: preferably in the current language, colored by bundle.
+   * With the "root" extra_nodes option (ego networks), only ends of edges of
+   * a root are added.
    *
    * @param \Drupal\network_views\Graph\GraphNode[] $nodes
    *   The nodes, keyed by graph key.
@@ -264,9 +289,8 @@ class GraphBuilder {
     $extra = [];
     foreach ($targets as $entity_type_id => $ids) {
       foreach ($this->entityTypeManager->getStorage($entity_type_id)->loadMultiple(array_keys($ids)) as $entity) {
-        $access = $entity->access('view', NULL, TRUE);
-        $cacheability->addCacheableDependency($access);
-        if (!$access->isAllowed()) {
+        $entity = $this->viewableTranslation($entity, $cacheability, $langcode);
+        if (!$entity) {
           continue;
         }
         $faded = FALSE;
@@ -276,7 +300,6 @@ class GraphBuilder {
           }
           $faded = TRUE;
         }
-        $entity = $this->entityRepository->getTranslationFromContext($entity);
         $extra[$this->entityKey($entity)] = new GraphNode(
           entity: $entity,
           label: (string) $entity->label(),
@@ -498,9 +521,8 @@ class GraphBuilder {
           continue;
         }
         foreach ($this->entityTypeManager->getStorage($shared_type)->loadMultiple(array_keys($members_per_item)) as $shared_id => $shared) {
-          $access = $shared->access('view', NULL, TRUE);
-          $cacheability->addCacheableDependency($access);
-          if (!$access->isAllowed()) {
+          $shared = $this->viewableTranslation($shared, $cacheability, $langcode);
+          if (!$shared) {
             continue;
           }
           $cacheability->addCacheableDependency($shared);
@@ -508,7 +530,7 @@ class GraphBuilder {
           if ($unavailable && $language === 'hide') {
             continue;
           }
-          $shared_label = (string) $this->entityRepository->getTranslationFromContext($shared)->label();
+          $shared_label = (string) $shared->label();
           $members = $members_per_item[$shared_id];
           $keys = array_map('strval', array_keys($members));
           sort($keys, SORT_NATURAL);
@@ -605,6 +627,48 @@ class GraphBuilder {
     ];
     $cacheability->applyTo($build);
     return $build;
+  }
+
+  /**
+   * Returns a translation of an entity the current user may view.
+   *
+   * Translations can be published separately: an item whose original is
+   * unpublished can have a published translation. The translation in the
+   * language comes first, then the original, then the other translations.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity.
+   * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
+   *   Collects the cacheability of the access checks.
+   * @param string|null $langcode
+   *   The language code; the current content language by default.
+   *
+   * @return \Drupal\Core\Entity\EntityInterface|null
+   *   The translation, or NULL when the user may view none.
+   */
+  public function viewableTranslation(EntityInterface $entity, CacheableMetadata $cacheability, ?string $langcode = NULL): ?EntityInterface {
+    $langcode ??= $this->languageManager->getCurrentLanguage(LanguageInterface::TYPE_CONTENT)->getId();
+    $candidates = [$entity];
+    if ($entity instanceof TranslatableInterface && !$entity->language()->isLocked()) {
+      // The translation in the language, the original, then the others.
+      $candidates = [];
+      if ($entity->hasTranslation($langcode)) {
+        $candidates[$langcode] = $entity->getTranslation($langcode);
+      }
+      $original = $entity->getUntranslated();
+      $candidates += [$original->language()->getId() => $original];
+      foreach (array_keys($entity->getTranslationLanguages()) as $translation_langcode) {
+        $candidates += [$translation_langcode => $entity->getTranslation($translation_langcode)];
+      }
+    }
+    foreach ($candidates as $candidate) {
+      $access = $candidate->access('view', NULL, TRUE);
+      $cacheability->addCacheableDependency($access);
+      if ($access->isAllowed()) {
+        return $candidate;
+      }
+    }
+    return NULL;
   }
 
   /**

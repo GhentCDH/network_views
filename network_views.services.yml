@@ -14,3 +14,4 @@ services:
     arguments:
       - '@plugin.manager.network_views.edge_source'
       - '@entity_type.manager'
+      - '@network_views.graph_builder'

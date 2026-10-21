@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormState;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
@@ -41,6 +42,7 @@ class NetworkNeighbourhoodTest extends KernelTestBase {
     'text',
     'node',
     'taxonomy',
+    'language',
     'views',
     'network_views',
   ];
@@ -126,6 +128,9 @@ class NetworkNeighbourhoodTest extends KernelTestBase {
       'hide_isolated' => TRUE,
     ], ['person']);
     $display = &$view->getDisplay('default');
+    // No "Published" filter: the neighbourhood is access checked, so users
+    // who may view unpublished content see it too.
+    unset($display['display_options']['filters']['status']);
     $display['display_options']['arguments']['network_neighbourhood'] = [
       'id' => 'network_neighbourhood',
       'table' => 'node_field_data',
@@ -255,6 +260,55 @@ class NetworkNeighbourhoodTest extends KernelTestBase {
     View::load('test_network')->delete();
     $this->createNetworkView([], ['person']);
     $this->assertArrayNotHasKey('root_shape', $this->styleOptionsForm());
+  }
+
+  /**
+   * Translations are published separately: one the user may view counts.
+   *
+   * Gil is unpublished in English, the original, and published in French.
+   */
+  public function testTranslations(): void {
+    $this->installConfig(['language']);
+    ConfigurableLanguage::createFromLangcode('fr')->save();
+    $this->container->get('language_manager')->reset();
+    $gil = $this->createNode('Gil', [], 0);
+    $gil->addTranslation('fr', ['title' => 'Gil FR', 'status' => 1])->save();
+    $this->nodes['Ann']->set('field_knows', [$this->nodes['Bob']->id(), $gil->id()])->save();
+    $this->createEgoView(['language' => 'fade']);
+
+    // In English, Gil is a neighbour, faded, with the French title: not the
+    // title of the unpublished English one.
+    $graph = $this->egoGraph('Ann');
+    $faded = array_map('boolval', array_column($graph['nodes'], 'faded', 'label'));
+    ksort($faded);
+    $this->assertSame(['Ann' => FALSE, 'Bob' => FALSE, 'Eva' => FALSE, 'Gil FR' => TRUE], $faded);
+    // Gil as root.
+    $labels = array_column($this->egoGraph('Gil')['nodes'], 'label');
+    sort($labels);
+    $this->assertSame(['Ann', 'Gil FR'], $labels);
+
+    // In French, Gil is available.
+    $this->config('system.site')->set('default_langcode', 'fr')->save();
+    $this->container->get('language.default')->set(ConfigurableLanguage::load('fr'));
+    $this->container->get('language_manager')->reset();
+    $faded = array_map('boolval', array_column($this->egoGraph('Ann')['nodes'], 'faded', 'label'));
+    $this->assertFalse($faded['Gil FR']);
+
+    // Without a translation the user may view, Gil is not found.
+    $gil = Node::load($gil->id());
+    $gil->getTranslation('fr')->setUnpublished()->save();
+    // Access results are kept for the rest of the request.
+    $this->container->get('entity_type.manager')->getAccessControlHandler('node')->resetCache();
+    $labels = array_column($this->egoGraph('Ann')['nodes'], 'label');
+    sort($labels);
+    $this->assertSame(['Ann', 'Bob', 'Eva'], $labels);
+    $this->assertSame([], $this->egoGraph('Gil')['nodes'] ?? []);
+
+    // Users who may view unpublished content see unpublished neighbours.
+    $this->setUpCurrentUser([], ['access content', 'bypass node access']);
+    $labels = array_column($this->egoGraph('Ann')['nodes'], 'label');
+    sort($labels);
+    $this->assertSame(['Ann', 'Bob', 'Eva', 'Gil FR', 'Hidden'], $labels);
   }
 
   /**
