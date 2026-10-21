@@ -110,7 +110,16 @@ An edge source is a plugin in `src/Plugin/NetworkEdgeSource/` with the `#[Networ
 
 ## Using the graph in other modules
 
-The `network_views.graph_builder` service builds and renders a graph from `GraphNode` objects (an entity with its label, color category, tooltip, and whether it is the root or faded) and `Edge` objects; it handles language, colors, the legend and the render array. `plugin.manager.network_views.edge_source` creates the configured edge sources, finds the edges between or of entities, and provides the edge source and shared links settings forms (pass the shared links configuration to the graph builder as the `shared_links` option). See `cytoscape_egonetwork` for an example.
+The `network_views.graph_builder` service builds and renders a graph from `GraphNode` objects (an entity with its label, color category, tooltip, and whether it is the root or faded) and `Edge` objects; it handles language, colors, the legend and the render array. `plugin.manager.network_views.edge_source` creates the configured edge sources, finds the edges between or of entities, and provides the edge source and shared links settings forms (pass the shared links configuration to the graph builder as the `shared_links` option). See the `relationship_nodes_networks` submodule of relationship_nodes for an edge source.
+
+In the browser, a click on a node dispatches a `networkviews:nodeclick` event on the canvas, with `detail.id` (the graph ID, e.g. `node:12`), `detail.label` and `detail.url`. It bubbles and can be cancelled: with `event.preventDefault()` the entity's page is not opened, e.g. to show the entity in a side panel instead.
+
+```js
+document.addEventListener('networkviews:nodeclick', (event) => {
+  event.preventDefault();
+  openPanel(event.detail.id);
+});
+```
 
 ## Theming
 

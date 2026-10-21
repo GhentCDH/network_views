@@ -2,6 +2,10 @@
 
 All notable changes to `network_views`.
 
+## Unreleased
+
+- A click on a node dispatches a cancelable `networkviews:nodeclick` event, so a theme can show the entity elsewhere (e.g. in a side panel) instead of opening its page.
+
 ## 1.0.0-beta1 - 2026-10-21
 
 First release. The network Views style, the graph builder for other modules (such as `cytoscape_egonetwork`) and edge sources:

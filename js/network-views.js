@@ -214,14 +214,21 @@
     cy.on('pan zoom', () => {
       tooltip.hidden = true;
     });
-    if (settings.link) {
-      cy.on('tap', 'node', (event) => {
-        const url = event.target.data('url');
-        if (url) {
-          window.location.href = url;
-        }
+    // A click on a node is announced with a "networkviews:nodeclick" event on
+    // the canvas (detail: id, label, url); a listener can cancel it, e.g. to
+    // show the entity elsewhere instead of opening its page.
+    cy.on('tap', 'node', (event) => {
+      const node = event.target;
+      const url = node.data('url');
+      const click = new CustomEvent('networkviews:nodeclick', {
+        bubbles: true,
+        cancelable: true,
+        detail: { id: node.id(), label: node.data('label'), url },
       });
-    }
+      if (canvas.dispatchEvent(click) && settings.link && url) {
+        window.location.href = url;
+      }
+    });
   }
 
   /**

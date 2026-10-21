@@ -193,7 +193,24 @@ class NetworkRendererTest extends WebDriverTestBase {
 
     $this->assertNoJavascriptErrors();
 
-    // Clicking a node opens the entity.
+    // A click is announced with an event; a listener that cancels it keeps
+    // the page.
+    $this->getSession()->executeScript(<<<'JS'
+      document.querySelector('[data-network-views]').addEventListener('networkviews:nodeclick', (event) => {
+        window.nodeClicks = (window.nodeClicks || []).concat([event.detail.id + ' ' + event.detail.label]);
+        if (window.cancelNodeClicks) {
+          event.preventDefault();
+        }
+      });
+      window.cancelNodeClicks = true;
+      JS);
+    $this->mouseOnGraph('mousedown', $ann);
+    $this->mouseOnGraph('mouseup', $ann);
+    $this->assertSame([$ann . ' Ann'], $this->getSession()->evaluateScript('window.nodeClicks'));
+    $assert->addressEquals('network');
+
+    // Otherwise, clicking a node opens the entity.
+    $this->getSession()->executeScript('window.cancelNodeClicks = false;');
     $this->mouseOnGraph('mousedown', $ann);
     $this->mouseOnGraph('mouseup', $ann);
     $path = $this->nodes['Ann']->toUrl()->toString();
