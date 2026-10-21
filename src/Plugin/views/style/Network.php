@@ -600,6 +600,22 @@ class Network extends StylePluginBase {
 
   /**
    * {@inheritdoc}
+   *
+   * The view depends on the modules of its enabled edge sources: without
+   * them, it would show a network without their edges.
+   */
+  public function calculateDependencies() {
+    $dependencies = parent::calculateDependencies();
+    foreach ($this->options['edge_sources'] ?? [] as $plugin_id => $config) {
+      if (!empty($config['enabled']) && $this->edgeSourceManager->hasDefinition($plugin_id)) {
+        $dependencies['module'][] = $this->edgeSourceManager->getDefinition($plugin_id)['provider'];
+      }
+    }
+    return $dependencies;
+  }
+
+  /**
+   * {@inheritdoc}
    */
   public function render() {
     if (!$this->baseEntityTypeId()) {
