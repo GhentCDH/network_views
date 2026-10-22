@@ -2,7 +2,7 @@
 
 All notable changes to `network_views`.
 
-## Unreleased
+## 1.0.0-beta3 - 2026-10-22
 
 - Option "Hide filter options that give no links": with hidden isolated nodes, exposed filters on a field of a shared links type no longer offer values that would give an empty network (values of fewer than two results, counted per entity). For SQL and Search API views.
 
