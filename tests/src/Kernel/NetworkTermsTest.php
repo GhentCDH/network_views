@@ -356,4 +356,108 @@ class NetworkTermsTest extends KernelTestBase {
     $this->assertArrayHasKey('field:field_topics', $form['edge_color_map']['types']);
   }
 
+  /**
+   * Exposed filter options that give no links can be hidden.
+   *
+   * Archives is shared by Ann and Bob; History and Philosophy belong to one
+   * person, Unused to nobody: with hidden isolated nodes, they would give an
+   * empty network.
+   */
+  public function testHideEmptyFilterOptions(): void {
+    $this->createTerm('Unused');
+    $options = [
+      'edge_sources' => $this->topicEdges(FALSE),
+      'shared_links' => [
+        ['edge_type' => 'field:field_topics', 'mode' => 'target', 'label' => 'Same topic', 'max' => 0],
+      ],
+      'hide_isolated' => TRUE,
+      'hide_empty_filter_options' => TRUE,
+    ];
+    $this->createTopicFilterView($options);
+    $all = ['All', 'Archives', 'History', 'Philosophy', 'Unused'];
+    $this->assertSame(['All', 'Archives'], $this->topicFilterOptions());
+
+    // The selected value stays, also when it gives no links.
+    $this->assertSame(['All', 'Archives', 'History'], $this->topicFilterOptions(['topic' => $this->terms['History']->id()]));
+
+    // A person in two languages counts once: Philosophy still belongs to one.
+    $this->installConfig(['language']);
+    ConfigurableLanguage::createFromLangcode('nl')->save();
+    $this->container->get('language_manager')->reset();
+    $this->container->get('entity_type.manager')->getStorage('node')->resetCache();
+    Node::load($this->persons['Cas']->id())->addTranslation('nl', ['title' => 'Cas NL'])->save();
+    $view = Views::getView('test_network');
+    $view->setDisplay('default');
+    $view->execute();
+    $this->assertCount(4, $view->result, 'A row per translation.');
+    $this->assertSame(['All', 'Archives'], $this->topicFilterOptions());
+
+    // Values shared by more items than the maximum of the shared links give
+    // no links either.
+    $max = $options;
+    $max['shared_links'][0]['max'] = 1;
+    $this->createTopicFilterView($max);
+    $this->assertSame(['All'], $this->topicFilterOptions());
+
+    // Without the option, or without hiding isolated nodes, all options.
+    $this->createTopicFilterView(['hide_empty_filter_options' => FALSE] + $options);
+    $this->assertSame($all, $this->topicFilterOptions());
+    $this->createTopicFilterView(['hide_isolated' => FALSE] + $options);
+    $this->assertSame($all, $this->topicFilterOptions());
+  }
+
+  /**
+   * Creates the test view with an exposed filter "topic" on the topics.
+   */
+  protected function createTopicFilterView(array $style_options): void {
+    View::load('test_network')?->delete();
+    $view = $this->createNetworkView($style_options, ['person']);
+    $display = &$view->getDisplay('default');
+    $display['display_options']['filters']['field_topics_target_id'] = [
+      'id' => 'field_topics_target_id',
+      'table' => 'node__field_topics',
+      'field' => 'field_topics_target_id',
+      'plugin_id' => 'taxonomy_index_tid',
+      'vid' => 'topics',
+      'type' => 'select',
+      'operator' => 'or',
+      'value' => [],
+      'exposed' => TRUE,
+      'expose' => [
+        'operator_id' => 'field_topics_target_id_op',
+        'label' => 'Topic',
+        'identifier' => 'topic',
+        'multiple' => FALSE,
+        'remember_roles' => ['authenticated' => 'authenticated'],
+        'reduce' => FALSE,
+      ],
+    ];
+    $view->save();
+  }
+
+  /**
+   * Returns the options of the exposed topic filter, as term names.
+   *
+   * @param array $input
+   *   The exposed input.
+   *
+   * @return string[]
+   *   The term names, sorted, with "All" for "- Any -".
+   */
+  protected function topicFilterOptions(array $input = []): array {
+    $view = Views::getView('test_network');
+    $view->setDisplay('default');
+    $view->setExposedInput($input);
+    $view->build();
+    $names = array_flip(array_map(fn(TermInterface $term) => $term->id(), $this->terms));
+    $options = [];
+    foreach (array_keys($view->exposed_widgets['topic']['#options']) as $key) {
+      $options[] = $names[$key] ?? (string) $key;
+    }
+    $view->destroy();
+    // "- Any -" first, then the terms by name.
+    sort($options);
+    return $options;
+  }
+
 }

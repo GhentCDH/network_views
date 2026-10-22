@@ -6,6 +6,7 @@
  */
 
 use Drupal\Core\Entity\ContentEntityTypeInterface;
+use Drupal\Core\Form\FormStateInterface;
 
 /**
  * Implements hook_theme().
@@ -47,4 +48,15 @@ function network_views_views_data_alter(array &$data): void {
       ],
     ];
   }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for views_exposed_form.
+ *
+ * Hides exposed filter options that would give an empty network.
+ *
+ * @see \Drupal\network_views\ExposedFilterOptions
+ */
+function network_views_form_views_exposed_form_alter(array &$form, FormStateInterface $form_state): void {
+  \Drupal::service('network_views.exposed_filter_options')->alterForm($form, $form_state);
 }

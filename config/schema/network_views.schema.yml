@@ -48,6 +48,9 @@ views.style.network:
     hide_isolated:
       type: boolean
       label: 'Hide nodes without connections'
+    hide_empty_filter_options:
+      type: boolean
+      label: 'Hide filter options that give no links'
     language:
       type: string
       label: 'Not available in the current language'

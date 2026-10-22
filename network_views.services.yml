@@ -15,3 +15,7 @@ services:
       - '@plugin.manager.network_views.edge_source'
       - '@entity_type.manager'
       - '@network_views.graph_builder'
+  network_views.exposed_filter_options:
+    class: Drupal\network_views\ExposedFilterOptions
+    arguments:
+      - '@entity_type.manager'

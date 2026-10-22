@@ -7,6 +7,7 @@ namespace Drupal\Tests\network_views\Kernel;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\search_api\Entity\Index;
@@ -16,6 +17,7 @@ use Drupal\taxonomy\Entity\Vocabulary;
 use Drupal\Tests\network_views\Traits\NetworkViewTrait;
 use Drupal\Tests\user\Traits\UserCreationTrait;
 use Drupal\views\Entity\View;
+use Drupal\views\Views;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -42,6 +44,7 @@ class NetworkSearchApiTest extends KernelTestBase {
     'text',
     'node',
     'taxonomy',
+    'language',
     'views',
     'search_api',
     'search_api_db',
@@ -100,6 +103,12 @@ class NetworkSearchApiTest extends KernelTestBase {
           'property_path' => 'title',
           'type' => 'string',
         ],
+        'field_keywords' => [
+          'label' => 'Keywords',
+          'datasource_id' => 'entity:node',
+          'property_path' => 'field_keywords',
+          'type' => 'integer',
+        ],
       ],
       'options' => ['index_directly' => FALSE],
     ])->save();
@@ -122,6 +131,113 @@ class NetworkSearchApiTest extends KernelTestBase {
     }
     Index::load('content')->indexItems();
 
+    $this->createKeywordView();
+
+    $graph = $this->getGraph();
+    $labels = array_column($graph['nodes'], 'label');
+    sort($labels);
+    // Dirk shares no keyword.
+    $this->assertSame(['Ann', 'Bob', 'Cas'], $labels);
+    $this->assertSame(['Ann > Bob: Same keyword', 'Bob > Cas: Same keyword'], $this->edgeList($graph));
+    // Each keyword its own color.
+    $this->assertCount(2, array_unique(array_column($graph['edges'], 'color')));
+  }
+
+  /**
+   * Exposed filter options that give no links can be hidden.
+   *
+   * Land and Archives are shared by two initiatives; Solo belongs to one,
+   * Unused to none; Eva, in two languages (two index items), is the only
+   * initiative with Twice.
+   */
+  public function testHideEmptyFilterOptions(): void {
+    $this->installConfig(['language']);
+    ConfigurableLanguage::createFromLangcode('nl')->save();
+    $this->container->get('language_manager')->reset();
+    $terms = [];
+    foreach (['Land', 'Archives', 'Solo', 'Twice', 'Unused'] as $name) {
+      $terms[$name] = Term::create(['vid' => 'keywords', 'name' => $name]);
+      $terms[$name]->save();
+    }
+    $initiatives = [
+      'Ann' => ['Land'],
+      'Bob' => ['Land', 'Archives'],
+      'Cas' => ['Archives'],
+      'Dirk' => ['Solo'],
+      'Eva' => ['Twice'],
+    ];
+    foreach ($initiatives as $title => $names) {
+      $node = Node::create([
+        'type' => 'initiative',
+        'title' => $title,
+        'field_keywords' => array_map(fn($name) => $terms[$name]->id(), $names),
+      ]);
+      $node->save();
+      if ($title === 'Eva') {
+        $node->addTranslation('nl', ['title' => 'Eva NL'])->save();
+      }
+    }
+    Index::load('content')->indexItems();
+    $names = array_flip(array_map(fn(Term $term) => $term->id(), $terms));
+    $options = function (array $input = []) use ($names): array {
+      $view = Views::getView('test_network');
+      $view->setDisplay('default');
+      $view->setExposedInput($input);
+      $view->build();
+      $options = array_map(fn($key) => $names[$key] ?? (string) $key, array_keys($view->exposed_widgets['keyword']['#options']));
+      $view->destroy();
+      sort($options);
+      return $options;
+    };
+    $filter = [
+      'keyword' => [
+        'id' => 'keyword',
+        'table' => 'search_api_index_content',
+        'field' => 'field_keywords',
+        'plugin_id' => 'search_api_term',
+        'vid' => 'keywords',
+        'type' => 'select',
+        'operator' => 'or',
+        'value' => [],
+        'exposed' => TRUE,
+        'expose' => [
+          'operator_id' => 'keyword_op',
+          'label' => 'Keyword',
+          'identifier' => 'keyword',
+          'multiple' => FALSE,
+          'remember_roles' => ['authenticated' => 'authenticated'],
+          'reduce' => FALSE,
+        ],
+      ],
+    ];
+
+    $this->createKeywordView(['hide_empty_filter_options' => TRUE], $filter);
+    $view = Views::getView('test_network');
+    $view->setDisplay('default');
+    $view->execute();
+    $this->assertCount(6, $view->result, 'An index item per translation.');
+    $this->assertSame(['All', 'Archives', 'Land'], $options());
+    // The selected value stays.
+    $this->assertSame(['All', 'Archives', 'Land', 'Solo'], $options(['keyword' => $terms['Solo']->id()]));
+
+    // Without the option, or without hiding isolated nodes, all options.
+    $all = ['All', 'Archives', 'Land', 'Solo', 'Twice', 'Unused'];
+    $this->createKeywordView([], $filter);
+    $this->assertSame($all, $options());
+    $this->createKeywordView(['hide_empty_filter_options' => TRUE, 'hide_isolated' => FALSE], $filter);
+    $this->assertSame($all, $options());
+  }
+
+  /**
+   * Creates the test view of the index: initiatives linked by their keywords.
+   *
+   * @param array $style_options
+   *   Options of the network style, added to those of the shared keywords.
+   * @param array $filters
+   *   Views filters, keyed by ID.
+   */
+  protected function createKeywordView(array $style_options = [], array $filters = []): void {
+    View::load('test_network')?->delete();
     View::create([
       'id' => 'test_network',
       'label' => 'Test network',
@@ -144,9 +260,10 @@ class NetworkSearchApiTest extends KernelTestBase {
                 'plugin_id' => 'search_api_field',
               ],
             ],
+            'filters' => $filters,
             'style' => [
               'type' => 'network',
-              'options' => [
+              'options' => $style_options + [
                 'edge_sources' => [
                   'entity_reference_fields' => [
                     'enabled' => TRUE,
@@ -164,15 +281,6 @@ class NetworkSearchApiTest extends KernelTestBase {
         ],
       ],
     ])->save();
-
-    $graph = $this->getGraph();
-    $labels = array_column($graph['nodes'], 'label');
-    sort($labels);
-    // Dirk shares no keyword.
-    $this->assertSame(['Ann', 'Bob', 'Cas'], $labels);
-    $this->assertSame(['Ann > Bob: Same keyword', 'Bob > Cas: Same keyword'], $this->edgeList($graph));
-    // Each keyword its own color.
-    $this->assertCount(2, array_unique(array_column($graph['edges'], 'color')));
   }
 
 }

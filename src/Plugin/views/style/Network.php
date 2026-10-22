@@ -18,6 +18,7 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\views\Attribute\ViewsStyle;
 use Drupal\views\Plugin\views\field\EntityField;
 use Drupal\views\Plugin\views\style\StylePluginBase;
+use Drupal\views\ViewExecutable;
 use Drupal\views\Views;
 use Drupal\network_views\EdgeSource\EdgeSourceManager;
 use Drupal\network_views\Form\ColorSettings;
@@ -124,6 +125,7 @@ class Network extends StylePluginBase {
     $options['directed'] = ['default' => TRUE];
     $options['edge_labels'] = ['default' => FALSE];
     $options['hide_isolated'] = ['default' => FALSE];
+    $options['hide_empty_filter_options'] = ['default' => FALSE];
     $options['language'] = ['default' => 'show'];
     $options['size'] = ['default' => 'degree'];
     $options['link'] = ['default' => TRUE];
@@ -222,6 +224,14 @@ class Network extends StylePluginBase {
       '#title' => $this->t('Hide nodes without connections'),
       '#default_value' => $this->options['hide_isolated'],
       '#fieldset' => 'nodes',
+    ];
+    $form['hide_empty_filter_options'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Hide filter options that give no links'),
+      '#description' => $this->t('For exposed filters on a field whose shared links are shown: leave out the values that fewer than two results share (or more than the maximum of the shared links), as they would only lead to hidden nodes. Counted on the results without that filter. "- Any -" and the selected value stay.'),
+      '#default_value' => $this->options['hide_empty_filter_options'],
+      '#fieldset' => 'nodes',
+      '#states' => ['visible' => [':input[name="style_options[hide_isolated]"]' => ['checked' => TRUE]]],
     ];
     $form['language'] = [
       '#type' => 'select',
@@ -771,16 +781,31 @@ class Network extends StylePluginBase {
    * Returns the base entity type of the view, if it has one.
    */
   protected function baseEntityTypeId(): ?string {
-    $entity_type = $this->view->getBaseEntityType();
+    return static::entityTypeOfView($this->view, $this->entityTypeManager);
+  }
+
+  /**
+   * Returns the entity type of the rows of a view.
+   *
+   * @param \Drupal\views\ViewExecutable $view
+   *   The view.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   *   The entity type manager.
+   *
+   * @return string|null
+   *   The base entity type, or for a Search API index whose datasources are
+   *   all of one entity type (e.g. content), that type: its result rows
+   *   carry their entities.
+   */
+  public static function entityTypeOfView(ViewExecutable $view, EntityTypeManagerInterface $entity_type_manager): ?string {
+    $entity_type = $view->getBaseEntityType();
     if ($entity_type) {
       return $entity_type->id();
     }
-    // A Search API index whose datasources are all of one entity type, e.g.
-    // content: its result rows carry their entities.
-    $index_id = Views::viewsData()->get($this->view->storage->get('base_table'))['table']['base']['index'] ?? NULL;
-    if ($index_id && $this->entityTypeManager->hasDefinition('search_api_index')) {
+    $index_id = Views::viewsData()->get($view->storage->get('base_table'))['table']['base']['index'] ?? NULL;
+    if ($index_id && $entity_type_manager->hasDefinition('search_api_index')) {
       /** @var \Drupal\search_api\IndexInterface|null $index */
-      $index = $this->entityTypeManager->getStorage('search_api_index')->load($index_id);
+      $index = $entity_type_manager->getStorage('search_api_index')->load($index_id);
       $types = array_unique(array_map(fn($datasource) => $datasource->getEntityTypeId(), $index ? $index->getDatasources() : []));
       if (count($types) === 1 && reset($types) !== NULL) {
         return reset($types);

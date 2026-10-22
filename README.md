@@ -50,6 +50,7 @@ drush en network_views
 | Color from field | Optional field whose value is a CSS color, e.g. a color field on a taxonomy term added through a relationship. Editors then choose the colors in the content. |
 | Node size | Fixed, or by number of connections. |
 | Hide nodes without connections | Leaves out isolated nodes. |
+| Hide filter options that give no links | With hidden isolated nodes: leaves out the values of exposed filters on a field whose shared links are shown (e.g. a keyword filter, with initiatives linked by their keywords) that fewer than two results share, or more than the maximum of the shared links; they would only lead to hidden nodes, an empty network. Counted per entity on the results without that filter, with one extra query per such filter; "- Any -" and the selected value stay. Works for SQL and Search API views. Filters on other fields are not changed. |
 | Not available in the current language | Show normally, show faded or hide the nodes without a translation in the current language that the visitor may view (for visitors: a published one), and the edges that their edge source marks as unavailable in it. Entities without a language are always available. |
 | Directed edges | Shows arrows. Without direction, two edges of the same type between the same nodes are merged. |
 | Always show edge labels | Otherwise edge labels are shown when hovering a node. |
